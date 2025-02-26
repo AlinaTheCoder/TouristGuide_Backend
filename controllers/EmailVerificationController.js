@@ -127,7 +127,9 @@ const verifyOTP = async (req, res) => {
       console.warn(
         `[verifyOTP] Invalid OTP for ${email}. Entered: ${userOTP}, Expected: ${data.otp}`
       );
-      return res.status(400).send({ error: 'Invalid OTP. Please try again.' });
+      return res.status(200).send({ success: false, message: 'Wrong OTP, Signup Unsuccessful!' });
+
+
     }
 
     // OTP is valid—remove it from the database to prevent reuse

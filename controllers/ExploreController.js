@@ -1,5 +1,6 @@
 // controllers/ExploreController.js
 const { db } = require('../config/db');
+const { filterExploreActivities } = require('../utils/Explore');
 
 exports.getAllListedExploreActivities = async (req, res) => {
   try {
@@ -16,23 +17,15 @@ exports.getAllListedExploreActivities = async (req, res) => {
       });
     }
 
-    let exploreActivities = [];
+    // 1) Grab the category (if any) from the query string
+    const { category } = req.query;
 
-    snapshot.forEach((childSnapshot) => {
-      const activityData = childSnapshot.val();
-      // Apply filtering conditions
-      if (activityData.status === "Accepted" && activityData.listingStatus === "List") {
-        console.log(`[DEBUG] Including Activity: ${childSnapshot.key}`);
-        exploreActivities.push({
-          id: childSnapshot.key, // activity ID
-          activityImages: activityData.activityImages || [],  // Ensure images exist
-          activityTitle: activityData.activityTitle || 'Untitled Activity',
-          dateRange: activityData.dateRange || 'No date available',
-          likedStatus: activityData.likedStatus || false // new field for liked status
-        });
-      } else {
-        console.log(`[DEBUG] Skipping Activity: ${childSnapshot.key} (Status: ${activityData.status}, Listing Status: ${activityData.listingStatus})`);
-      }
+    // 2) Pass it to the filterExploreActivities helper
+    const exploreActivities = filterExploreActivities(snapshot, {
+      logDebug: true,
+      includeLikedStatus: true,
+      defaultDateRange: 'No date available',
+      filterCategory: category, // <-- new option
     });
 
     console.log(`[DEBUG] Total Listed Explore Activities: ${exploreActivities.length}`);

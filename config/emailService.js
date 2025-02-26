@@ -8,7 +8,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
 // Function to send an email
 const sendEmail = async ({ to, subject, text, html }) => {
   try {
@@ -21,7 +20,6 @@ const sendEmail = async ({ to, subject, text, html }) => {
       text,                        
       html,                        
     };
-
     // Send the email
     const info = await transporter.sendMail(mailOptions);
 
@@ -32,5 +30,4 @@ const sendEmail = async ({ to, subject, text, html }) => {
     return { success: false, error };
   }
 };
-
 module.exports = sendEmail;

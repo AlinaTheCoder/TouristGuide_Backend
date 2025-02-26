@@ -36,6 +36,16 @@ app.use('/email', emailVerificationRouter);
 const searchRouter = require('./routers/SearchRouter');
 app.use(searchRouter);
 
+const scheduleRouter = require('./routers/ScheduleRouter');
+app.use('/schedule', scheduleRouter);
+
+
+const AnalyticsRouter = require('./routers/AnalyticsRouter');
+app.use(AnalyticsRouter);
+
+const TripRouter = require('./routers/TripRouter');
+app.use(TripRouter);
+
 // CRON job every 30 minutes
 cron.schedule('*/30 * * * *', () => {
   console.log('[CRON] Running cleanupExpiredOTP...');
@@ -56,8 +66,12 @@ app.use(initSocketRoutes(io));
 const initAdminSocketRoutes = require('./routers/AdminSocketRouter');
 app.use(initAdminSocketRoutes(io));
 
+// for the Listings Screen 
+const initHostSocketRoutes = require('./routers/HostSocketRouter');
+app.use(initHostSocketRoutes(io));
+
 // Start the server
-const port = process.env.PORT || 49152;
-http.listen(port, () => {
-  console.log(`Server running at http://10.109.40.216:${port}`);
+const port = process.env.PORT || 3000;
+http.listen(port, '0.0.0.0', () => {
+  console.log(`Server running at http://192.168.10.6 :${port}`);
 });

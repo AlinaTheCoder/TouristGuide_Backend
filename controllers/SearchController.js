@@ -2,94 +2,68 @@
 const { db } = require('../config/db'); // Ensure db is your Firebase RTDB instance
 
 // -------------------------
-// Province to city mapping (unchanged from your code)
+// Province -> City mapping (unchanged)
 const provinceCityMapping = {
   Punjab: [
-    "Ahmadpur East",
-    "Alipur",
-    "Attock",
-    "Bahawalnagar",
-    "Bahawalpur",
-    "Bhalwal",
-    "Chakwal",
-    "Chiniot",
-    "Dera Ghazi Khan",
-    "Faisalabad",
-    "Gujranwala",
-    "Jhelum",
-    "Kasur",
-    "Lahore",
-    "Gojra",
-    "Hafizabad",
-    "Islamabad",
-    "Mirpur",
-    "Multan",
-    "Okara",
-    "Rawalpindi",
-    "Sahiwal",
-    "Sialkot",
-    "Wah Cantt"
+    "Ahmadpur East", "Alipur", "Attock", "Bahawalnagar", "Bahawalpur",
+    "Bhalwal", "Chakwal", "Chiniot", "Dera Ghazi Khan", "Faisalabad",
+    "Gujranwala", "Jhelum", "Kasur", "Lahore", "Gojra", "Hafizabad",
+    "Islamabad", "Mirpur", "Multan", "Okara", "Rawalpindi", "Sahiwal",
+    "Sialkot", "Wah Cantt"
   ],
   Sindh: [
-    "Karachi",
-    "Jacobabad",
-    "Nawabshah",
-    "Khairpur",
-    "Larkana",
-    "Sukkur"
+    "Karachi", "Jacobabad", "Nawabshah", "Khairpur", "Larkana", "Sukkur"
   ],
   KPK: [
-    "Abbottabad",
-    "Bannu",
-    "Dera Ismail Khan",
-    "Haripur",
-    "Peshawar",
-    "Swat",
-    "Zhob",
-    "Barikot",
-    "Gilgit",
-    "Kotli",
-    "Mardan",
-    "Muzaffarabad"
+    "Abbottabad", "Bannu", "Dera Ismail Khan", "Haripur", "Peshawar",
+    "Swat", "Zhob", "Barikot", "Gilgit", "Kotli", "Mardan", "Muzaffarabad"
   ],
   Balochistan: [
-    "Khuzdar",
-    "Quetta",
-    "Turbat",
-    "Chaman"
+    "Khuzdar", "Quetta", "Turbat", "Chaman"
   ]
 };
 
 // -------------------------
-// Helper: parse ISO date string to Date object
+// Helper: parse ISO date string
 function parseISODate(dateString) {
   return new Date(dateString);
 }
 
 // -------------------------
-// Helper: Check if two date ranges overlap
+// Helper: Check date-range overlap
 function isDateOverlap(selectedStart, selectedEnd, activityStart, activityEnd) {
   return selectedEnd >= activityStart && selectedStart <= activityEnd;
 }
 
 // -------------------------
+// Age group check: user picks a category, activity has an ageGroup
+function doesAgeGroupMatch(userCategory, activityCat) {
+  if (!activityCat) return false; // If activity has no ageGroup, can't match
+
+  // "All Ages (1+)" => everything
+  if (userCategory === "All Ages (1+)") {
+    return true;
+  }
+  // Otherwise, exact match required for single or combined categories:
+  // e.g. "Children", "Teenagers", "Adults",
+  //      "Children and Teenagers", "Teenagers and Adults"
+  return userCategory.trim().toLowerCase() === activityCat.trim().toLowerCase();
+}
+
+// -------------------------
 // Controller: searchActivities
 // Expects in req.body:
-//  - searchQuery: string (to match activity.city)
-//  - selectedRegion: string ("1" means flexible; "2" => Punjab, "3" => Sindh, "4" => KPK, "5" => Balochistan)
-//  - rawDateRange: { startDate, endDate } in ISO string format (optional)
-//  - guestDetails: object with properties:
-//       - category (e.g. "Adults")
-//       - value (number of guests selected)
-// Both guestDetails conditions must meet: activity.ageGroup must match
-// and activity.maxGuestsPerTime must be >= guestDetails.value.
+//  - searchQuery: string
+//  - selectedRegion: string ("1" => flexible)
+//  - rawDateRange: { startDate, endDate } in ISO strings
+//  - guestDetails: { category, value }
 const searchActivities = async (req, res) => {
   try {
     const {
       searchQuery = "",
       selectedRegion = "1",
-      rawDateRange,  // { startDate, endDate } if provided
-      guestDetails,  // { category: "Adults", value: number } if provided
+      rawDateRange,
+      guestDetails,
     } = req.body;
 
     console.log("[searchActivities] Received parameters:", {
@@ -99,7 +73,7 @@ const searchActivities = async (req, res) => {
       guestDetails
     });
 
-    // 1) Retrieve all activities from Firebase RTDB
+    // 1) Retrieve all activities
     const snapshot = await db.ref("activities").once("value");
     const activitiesData = snapshot.val();
     if (!activitiesData) {
@@ -109,14 +83,15 @@ const searchActivities = async (req, res) => {
 
     const activities = Object.values(activitiesData);
 
-    // 2) Apply filters
+    // 2) Filter
     const filteredActivities = activities.filter((activity) => {
       let matches = true;
 
-      // (a) City text search
+      // (a) City search
       if (searchQuery) {
-        if (!activity.city.trim().toLowerCase()
-          .includes(searchQuery.trim().toLowerCase())) {
+        if (!activity.city ||
+            !activity.city.trim().toLowerCase()
+              .includes(searchQuery.trim().toLowerCase())) {
           matches = false;
         }
       }
@@ -133,40 +108,37 @@ const searchActivities = async (req, res) => {
         }
         if (provinceName) {
           const citiesInProvince = provinceCityMapping[provinceName] || [];
-          if (!citiesInProvince.some(
-            city => city.trim().toLowerCase() === activity.city.trim().toLowerCase()
+          const activityCity = (activity.city || "").trim().toLowerCase();
+          if (!citiesInProvince.some(city =>
+            city.trim().toLowerCase() === activityCity
           )) {
             matches = false;
           }
         }
       }
 
-      // (c) Date range filter: single date or range
+      // (c) Date range: single or 2-date
       if (rawDateRange && rawDateRange.startDate && activity.dateRange) {
-        // If endDate is null, treat it as the same as startDate (single-day filter)
         const selectedStart = new Date(rawDateRange.startDate);
         const selectedEnd = rawDateRange.endDate
           ? new Date(rawDateRange.endDate)
-          : selectedStart; // single date scenario
+          : selectedStart; // single day
 
         const activityStart = parseISODate(activity.dateRange.startDate);
-        const activityEnd = parseISODate(activity.dateRange.endDate);
+        const activityEnd   = parseISODate(activity.dateRange.endDate);
 
         if (!isDateOverlap(selectedStart, selectedEnd, activityStart, activityEnd)) {
           matches = false;
         }
       }
 
-      // (d) Guest details filter
+      // (d) Guest details
       if (guestDetails && guestDetails.category) {
-        // Age group match
-        if (
-          activity.ageGroup &&
-          activity.ageGroup.trim().toLowerCase() !== guestDetails.category.trim().toLowerCase()
-        ) {
+        // Age group exact match (unless "All Ages (1+)")
+        if (!doesAgeGroupMatch(guestDetails.category, activity.ageGroup || "")) {
           matches = false;
         }
-        // maxGuestsPerTime check
+        // maxGuestsPerTime
         if (
           activity.maxGuestsPerTime === undefined ||
           Number(activity.maxGuestsPerTime) < Number(guestDetails.value)

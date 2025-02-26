@@ -1,27 +1,16 @@
 // controllers/ExploreSocketController.js
 const { db } = require('../config/db');
+const { filterExploreActivities } = require('../utils/Explore');
 
 const setupExploreActivitiesListener = (io) => {
   const activitiesRef = db.ref('activities');
 
   activitiesRef.on('value', (snapshot) => {
-    let exploreActivities = [];
-    if (snapshot.exists()) {
-      snapshot.forEach((childSnapshot) => {
-        const activityData = childSnapshot.val();
-        if (
-          activityData.status === "Accepted" &&
-          activityData.listingStatus === "List"
-        ) {
-          exploreActivities.push({
-            id: childSnapshot.key,
-            activityImages: activityData.activityImages || [],
-            activityTitle: activityData.activityTitle || 'Untitled Activity',
-            dateRange: activityData.dateRange || {},
-          });
-        }
-      });
-    }
+    const exploreActivities = filterExploreActivities(snapshot, {
+      logDebug: false,
+      includeLikedStatus: false,
+      defaultDateRange: {}
+    });
 
     io.emit('exploreActivitiesUpdate', {
       success: true,
