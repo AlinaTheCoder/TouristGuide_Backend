@@ -1,0 +1,33 @@
+{
+    "activities": {
+      "activityId1": {
+        "title": "Hiking Trip",
+        "description": "An adventurous mountain hike.",
+        "hostId": "hostId1",
+        "availableSlots": 10,
+        "price": 500,
+        "location": "Naran Valley",
+        "startDate": "2025-01-15",
+        "endDate": "2025-01-20"
+      }
+    },
+    "users": {
+      "userId1": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "bookings": {
+          "bookingId1": "activityId1"
+        }
+      }
+    },
+    "bookings": {
+      "bookingId1": {
+        "userId": "userId1",
+        "activityId": "activityId1",
+        "status": "confirmed",
+        "date": "2025-01-10",
+        "participants": 2
+      }
+    }
+  }
+  
