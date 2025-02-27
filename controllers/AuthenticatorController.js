@@ -73,8 +73,6 @@ async function Signup(req, res) {
             email: userRecord.email,
             name: FullName,
             type: 0, // Assuming `type: 0` indicates a default user type
-            phoneNumber: '',
-            cnic: '',
             loginWithGoogle: '0', // simple email login hora not with google
 
         });
@@ -133,11 +131,9 @@ async function Login(req, res) {
         res.status(400).send({ error: errorMessage });
     }
 }
-
-
 // Controller function to handle Login with Google
 const LoginWithGoogle = async (req, res) => {
-    const { uid, email, name, type, phoneNumber, cnic, loginWithGoogle } = req.body;
+    const { uid, email, name, type, loginWithGoogle } = req.body;
 
     // Validate required fields
     if (!uid || !email || !name) {
@@ -160,8 +156,6 @@ const LoginWithGoogle = async (req, res) => {
             email,
             name,
             type: type || 0,
-            phoneNumber: phoneNumber || '',
-            cnic: cnic || '',
             loginWithGoogle: loginWithGoogle || 1,
         });
 

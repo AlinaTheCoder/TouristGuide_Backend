@@ -1,6 +1,7 @@
-
-const { db,admin } = require('../config/db')
-const sendEmail = require('../config/emailService')
+// controllers/AdminController.js
+const { db, admin } = require('../config/db');
+const sendEmail = require('../config/emailService');
+const { transformPendingActivity, transformActivityImage } = require('../utils/Admin');
 
 exports.getPendingRequests = async (req, res) => {
   try {
@@ -29,12 +30,7 @@ exports.getPendingRequests = async (req, res) => {
           fullData: activityData
         });
 
-        pendingActivities.push({
-          id: childSnapshot.key,
-          activityTitle: activityData.activityTitle,
-          createdAt: activityData.createdAt,
-          images: activityData.activityImages || []
-        });
+        pendingActivities.push(transformPendingActivity(childSnapshot));
       });
     }
 
@@ -59,6 +55,7 @@ exports.getPendingRequests = async (req, res) => {
     });
   }
 };
+
 exports.fetchActivityDetailsById = async (req, res) => {
   try {
     console.log('------- FETCH ACTIVITY DETAILS START -------');
@@ -126,7 +123,6 @@ exports.fetchActivityDetailsById = async (req, res) => {
     console.log('------- FETCH ACTIVITY DETAILS END -------');
   }
 };
-
 
 exports.acceptActivity = async (req, res) => {
   try {
@@ -279,10 +275,6 @@ exports.rejectActivity = async (req, res) => {
   }
 };
 
-
-/**
- * Controller function to fetch all accepted activities (status === 'Accepted').
- */
 exports.fetchAllAcceptedActivities = async (req, res) => {
   try {
     console.log('[AdminController] fetchAllAcceptedActivities called');
@@ -308,20 +300,9 @@ exports.fetchAllAcceptedActivities = async (req, res) => {
     // Process the snapshot and include only required fields
     const acceptedActivities = [];
     snapshot.forEach((childSnapshot) => {
-      const activityData = childSnapshot.val();
-
-      const activityDetails = {
-        id: childSnapshot.key, // Activity ID
-        activityTitle: activityData.activityTitle, // Activity title
-        image: activityData.activityImages ? activityData.activityImages[0] : 'No Image', // First image (if exists)
-      };
-
-      // Log the details for each activity
+      const activityDetails = transformActivityImage(childSnapshot, 'No Image');
       console.log('[DEBUG] Accepted Activity Details:', JSON.stringify(activityDetails, null, 2));
       console.log(activityDetails.activityTitle);
-      
-
-      // Push the activity details into the array
       acceptedActivities.push(activityDetails);
     });
 
@@ -341,10 +322,6 @@ exports.fetchAllAcceptedActivities = async (req, res) => {
   }
 };
 
-
-/**
- * Controller function to fetch all rejected activities (status === 'Rejected').
- */
 exports.fetchAllRejectedActivities = async (req, res) => {
   try {
     console.log('[AdminController] fetchAllRejectedActivities called');
@@ -370,18 +347,8 @@ exports.fetchAllRejectedActivities = async (req, res) => {
     // Process the snapshot and include only required fields
     const rejectedActivities = [];
     snapshot.forEach((childSnapshot) => {
-      const activityData = childSnapshot.val();
-
-      const activityDetails = {
-        id: childSnapshot.key, // Activity ID
-        activityTitle: activityData.activityTitle || 'Untitled Activity', // Activity title
-        image: activityData.activityImages ? activityData.activityImages[0] : 'No Image', // First image (if exists)
-      };
-
-      // Log the details for each activity
+      const activityDetails = transformActivityImage(childSnapshot, 'No Image');
       console.log('[DEBUG] Rejected Activity Details:', JSON.stringify(activityDetails, null, 2));
-
-      // Push the activity details into the array
       rejectedActivities.push(activityDetails);
     });
 

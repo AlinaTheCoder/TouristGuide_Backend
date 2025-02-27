@@ -15,9 +15,7 @@ const GetUserByID = async (req, res) => {
             uid: userRecord.uid,
             email: userRecord.email,
             name: additionalData.name || 'N/A', // Corrected to fetch from Realtime DB
-            phoneNumber: additionalData.phoneNumber || 'N/A',
-            cnic: additionalData.cnic || 'N/A',
-            loginWithGoogle:additionalData.loginWithGoogle
+            loginWithGoogle: additionalData.loginWithGoogle
         });
     } catch (error) {
         console.error('Error fetching user data:', error.message);
@@ -25,6 +23,61 @@ const GetUserByID = async (req, res) => {
     }
 };
 
+const GetHostPersonalInfo = async (req, res) => {
+    const { uid } = req.params;
+
+    try {
+        // 1) Get user from Firebase Auth
+        const userRecord = await admin.auth().getUser(uid);
+
+        // 2) Get additional user data from Realtime DB
+        const userSnapshot = await db.ref(`users/${uid}`).once('value');
+        const userData = userSnapshot.val() || {};
+
+        // 3) Fetch the host's LAST LISTED activity
+        //    (Assumes you store host's UID in each activity under a field like "hostUid". 
+        //     If you use a different field name for the host's UID, adjust accordingly!)
+
+        const activitiesRef = db.ref('activities');
+        const activitiesSnapshot = await activitiesRef
+            .orderByChild('hostId')
+            .equalTo(uid)
+            .once('value');
+
+        let phoneNumber = null;
+        let cnic = null;
+
+        if (activitiesSnapshot.exists()) {
+            // Convert the returned object to an array
+            const activitiesObj = activitiesSnapshot.val();
+            const activitiesArray = Object.values(activitiesObj);
+
+            // Sort by createdAt (descending), so index 0 is the most recent
+            activitiesArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            // The "last listed" (most recently created) activity
+            const lastActivity = activitiesArray[0];
+
+            if (lastActivity) {
+                phoneNumber = lastActivity.phoneNumber || null;
+                cnic = lastActivity.cnic || null;
+            }
+        }
+
+        // 4) Return the combined data
+        res.status(200).send({
+            uid: userRecord.uid,
+            email: userRecord.email,
+            name: userData.name || 'N/A',
+            loginWithGoogle: userData.loginWithGoogle,
+            phoneNumber,
+            cnic,
+        });
+    } catch (error) {
+        console.error('Error fetching host personal info:', error.message);
+        res.status(500).send({ error: 'An error occurred while fetching host personal info.' });
+    }
+};
 const EditName = async (req, res) => {
     const { uid } = req.params;
     const { name } = req.body;
@@ -35,21 +88,39 @@ const EditName = async (req, res) => {
     }
 
     try {
-        // Reference the user's record in the database
+        // 1) Update the user's name in "users/<uid>"
         const userRef = db.ref(`users/${uid}`);
-
-        // Check if the user exists
         const snapshot = await userRef.once('value');
         if (!snapshot.exists()) {
             return res.status(404).send({ error: 'User not found.' });
         }
-
-        // Update the user's name
         await userRef.update({ name });
-        res.status(200).send({ message: 'Name updated successfully!', uid, name });
+
+        // 2) Update all activities in "activities" where hostId == uid, but ONLY if they exist
+        const activitiesRef = db.ref('activities');
+        const activitiesSnapshot = await activitiesRef
+            .orderByChild('hostId')
+            .equalTo(uid)
+            .once('value');
+
+        if (activitiesSnapshot.exists()) {
+            const activitiesData = activitiesSnapshot.val();
+
+            // Build a multi-path update for all matching activities
+            const updates = {};
+            Object.keys(activitiesData).forEach((activityKey) => {
+                // Since you want to update the "hostName" field:
+                updates[`${activityKey}/hostName`] = name;
+            });
+
+            // Apply all updates in one go
+            await activitiesRef.update(updates);
+        }
+
+        return res.status(200).send({ message: 'Name updated successfully!', uid, name });
     } catch (error) {
         console.error('Error updating name:', error.message);
-        res.status(500).send({ error: 'An error occurred while updating the name.' });
+        return res.status(500).send({ error: 'An error occurred while updating the name.' });
     }
 };
 
@@ -80,4 +151,4 @@ const ChangePassword = async (req, res) => {
     }
 };
 
-module.exports = { GetUserByID, EditName, ChangePassword };
+module.exports = { GetUserByID, GetHostPersonalInfo, EditName, ChangePassword };

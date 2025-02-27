@@ -1,0 +1,132 @@
+// controllers/ScheduleController.js
+
+const admin = require('firebase-admin');
+const db = admin.database();
+
+exports.getHostActivities = async (req, res) => {
+  const { hostId } = req.params;
+  console.log(`[DEBUG - getHostActivities] Received request for hostId: ${hostId}`);
+
+  try {
+    const ref = db.ref('activities');
+    const snapshot = await ref.orderByChild('hostId').equalTo(hostId).once('value');
+
+    if (!snapshot.exists()) {
+      console.log(`[DEBUG - getHostActivities] No activities found for hostId: ${hostId}`);
+      return res.json([]); // Return empty array if no activities
+    }
+
+    const activitiesData = snapshot.val();
+
+    // Convert object to an array and attach activityId
+    const activitiesArray = Object.keys(activitiesData).map((key) => ({
+      ...activitiesData[key],
+      activityId: key,
+    }));
+
+    console.log(`[DEBUG - getHostActivities] Total activities fetched: ${activitiesArray.length}`);
+
+    // Filter only activities where `status = "Accepted"` and `listingStatus = "List"`
+    const acceptedActivities = activitiesArray.filter(
+      (activity) => activity.status === "Accepted" && activity.listingStatus === "List"
+    );
+
+    console.log(`[DEBUG - getHostActivities] Accepted & Listed activities count: ${acceptedActivities.length}`);
+
+    return res.json(acceptedActivities); // Return only "Accepted" + "List" activities
+  } catch (error) {
+    console.error(`[ERROR - getHostActivities] ${error.message}`);
+    return res.status(500).json({ error: 'Failed to fetch host activities.' });
+  }
+};
+
+/**
+ * GET /schedule/:activityId
+ * Fetch the details of one specific activity by its ID
+ */
+exports.getActivityById = async (req, res) => {
+  const { activityId } = req.params;
+  console.log(`[DEBUG - getActivityById] Fetching activityId: ${activityId}`);
+
+  try {
+    const ref = db.ref(`activities/${activityId}`);
+    const snapshot = await ref.once('value');
+
+    if (!snapshot.exists()) {
+      console.log('[DEBUG - getActivityById] Activity not found.');
+      return res.status(404).json({ error: 'Activity not found.' });
+    }
+
+    const activityData = snapshot.val();
+    return res.json({ ...activityData, activityId });
+  } catch (error) {
+    console.error(`[ERROR - getActivityById] ${error.message}`);
+    return res.status(500).json({ error: 'Failed to fetch activity details.' });
+  }
+};
+
+/**
+ * PUT /schedule/:activityId
+ * Update an activity's schedule-related fields
+ */
+exports.updateActivity = async (req, res) => {
+    const { activityId } = req.params;
+    console.log(`[DEBUG - updateActivity] Updating activityId: ${activityId}`);
+  
+    try {
+      console.log('[DEBUG - updateActivity] Request body =>', req.body);
+  
+      const {
+        // We nest dateRange in your FRDB, so let's handle that carefully:
+        dateRange,
+        startTime,
+        endTime,
+        duration,
+        maxGuestsPerDay,
+        maxGuestsPerTime,
+        pricePerGuest,
+        estimatedEarnings,
+        listingStatus,
+        address,
+        city,
+      } = req.body;
+  
+      const updates = {};
+  
+      // If dateRange object was sent, update dateRange/startDate + dateRange/endDate
+      if (dateRange && typeof dateRange === 'object') {
+        if (dateRange.startDate !== undefined) {
+          updates['dateRange/startDate'] = dateRange.startDate;
+        }
+        if (dateRange.endDate !== undefined) {
+          updates['dateRange/endDate'] = dateRange.endDate;
+        }
+      }
+  
+      if (startTime !== undefined) updates.startTime = startTime;
+      if (endTime !== undefined) updates.endTime = endTime;
+      if (duration !== undefined) updates.duration = duration;
+      if (maxGuestsPerDay !== undefined) updates.maxGuestsPerDay = maxGuestsPerDay;
+      if (maxGuestsPerTime !== undefined) updates.maxGuestsPerTime = maxGuestsPerTime;
+      if (pricePerGuest !== undefined) updates.pricePerGuest = pricePerGuest;
+      if (estimatedEarnings !== undefined) updates.estimatedEarnings = estimatedEarnings;
+      if (listingStatus !== undefined) updates.listingStatus = listingStatus;
+      if (address !== undefined) updates.address = address;
+      if (city !== undefined) updates.city = city;
+  
+      if (Object.keys(updates).length === 0) {
+        console.log('[DEBUG - updateActivity] No valid fields to update.');
+        return res.status(400).json({ error: 'No valid fields provided for update.' });
+      }
+  
+      console.log('[DEBUG - updateActivity] Final updates =>', updates);
+  
+      await db.ref(`activities/${activityId}`).update(updates);
+  
+      console.log('[DEBUG - updateActivity] Update successful for activityId:', activityId);
+      return res.json({ message: 'Activity updated successfully' });
+    } catch (error) {
+      console.error(`[ERROR - updateActivity] ${error.message}`);
+      return res.status(500).json({ error: 'Failed to update activity.' });
+    }
+  };

@@ -367,6 +367,56 @@ Thank you for booking with us!`,
       console.error('[bookTimeSlot] Error retrieving user email or sending email:', emailErr);
     }
 
+
+    // here 
+    try {
+      // You must have a "hostId" (or similar) in your activity node.
+      // If your DB structure uses a different field name, adjust accordingly.
+      if (activity.hostId) {
+        // 1) Fetch host's record from Firebase Auth
+        const hostRecord = await admin.auth().getUser(activity.hostId);
+        if (hostRecord && hostRecord.email) {
+          // 2) Compose the email
+          const userSnapshot = await db.ref(`users/${userId}`).once('value');
+          const userData = userSnapshot.val();
+          const userName = (userData && userData.name) ? userData.name : "a customer";
+
+          const slotLabel = getSlotDisplayLabel(activity, slotId) || "Timing not available";
+          // We can also show the host’s name from activity.hostName or from the host’s user record, your choice.
+          const hostName = activity.hostName || "Host";
+
+          const hostEmailResponse = await sendEmail({
+            to: hostRecord.email,
+            subject: 'New Booking Received',
+            text: `Dear ${hostName},
+
+We’re pleased to inform you that ${userName} has just booked your activity: "${activity.activityTitle}."
+Date of Booking: ${date}
+Time Slot: ${slotLabel}
+Number of Guests: ${requestedGuests}
+
+Thank you for hosting on our platform!`,
+            html: `<p>Dear ${hostName},</p>
+<p>We’re pleased to inform you that <strong>${userName}</strong> has just booked your activity: <strong>${activity.activityTitle}</strong>.</p>
+<ul>
+  <li><strong>Date of Booking:</strong> ${date}</li>
+  <li><strong>Time Slot:</strong> ${slotLabel}</li>
+  <li><strong>Number of Guests:</strong> ${requestedGuests}</li>
+</ul>
+<p>Thank you for hosting on our platform!</p>`
+          });
+
+          if (!hostEmailResponse.success) {
+            console.error('[bookTimeSlot] Host email sending failed:', hostEmailResponse.error);
+          } else {
+            console.log('[bookTimeSlot] Notification email sent successfully to host.');
+          }
+        }
+      }
+    } catch (hostEmailErr) {
+      console.error('[bookTimeSlot] Error retrieving host email or sending email:', hostEmailErr);
+    }
+
     console.log('[bookTimeSlot] Booking confirmed!');
     return res.status(200).json({
       success: true,
