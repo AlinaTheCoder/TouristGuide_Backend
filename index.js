@@ -6,6 +6,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 require('dotenv').config();
 const cron = require('node-cron');
 const { cleanupExpiredOTP } = require('./cleanupExpiredOTP');
+// Import the global error handler middleware
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 app.use(cors({ origin: '*' }));
@@ -70,8 +72,24 @@ app.use(initAdminSocketRoutes(io));
 const initHostSocketRoutes = require('./routers/HostSocketRouter');
 app.use(initHostSocketRoutes(io));
 
+// --- Catch-All for Unknown Routes ---
+app.use((req, res, next) => {
+  res.status(404).send({ error: 'Not Found' });
+});
+
+// --- Global Error Handler Middleware ---
+app.use(errorHandler);
+
+// --- Process Event Handlers ---
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 // Start the server
-const port = process.env.PORT || 3000;
+const port = process.env.PORT ;
 http.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://192.168.10.6 :${port}`);
+  console.log(`Server running at http://10.10.64.182 :${port}`);
 });

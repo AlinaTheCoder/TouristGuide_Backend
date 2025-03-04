@@ -29,6 +29,7 @@ exports.toggleWishlistStatus = async (req, res) => {
 };
 
 exports.getWishlistActivities = async (req, res) => {
+  // (Used by your WishlistContext to fetch *IDs only*)
   try {
     const { userId } = req.params;
     if (!userId) {
@@ -49,6 +50,62 @@ exports.getWishlistActivities = async (req, res) => {
     return res.status(200).json({ success: true, data: likedActivityIds });
   } catch (error) {
     console.error("[WishlistController] getWishlistActivities error:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * NEW METHOD:
+ * Returns full activity objects for each item in the user’s wishlist
+ */
+exports.getFullWishlistActivities = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "Missing userId" });
+    }
+
+    // 1) Get the wishlist entries for this user
+    const wishlistRef = db.ref(`wishlist/${userId}`);
+    const wishlistSnap = await wishlistRef.once('value');
+
+    if (!wishlistSnap.exists()) {
+      // No wishlist found => return empty
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    // 2) Build a list of activityIds the user liked
+    const wishlistData = wishlistSnap.val(); 
+    const likedActivityIds = Object.keys(wishlistData).filter(id => wishlistData[id] === true);
+
+    if (likedActivityIds.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    // 3) For each ID, fetch the details from 'activities' node
+    const activitiesRef = db.ref('activities');
+    const fetchPromises = likedActivityIds.map(activityId =>
+      activitiesRef.child(activityId).once('value')
+    );
+    const snapshots = await Promise.all(fetchPromises);
+
+    // 4) Map each snapshot into a minimal detail object
+    const result = [];
+    snapshots.forEach(snap => {
+      if (snap.exists()) {
+        const data = snap.val();
+        result.push({
+          id: snap.key,
+          activityTitle: data.activityTitle || 'Untitled Activity',
+          // We'll store just the first image to match your old logic
+          activityImages: data.activityImages ? [data.activityImages[0]] : [],
+        });
+      }
+    });
+
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error("[WishlistController] getFullWishlistActivities error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
