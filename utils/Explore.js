@@ -1,22 +1,17 @@
 // utils/Explore.js
-//startDate < today
 function filterExploreActivities(snapshot, options = {}) {
   if (!snapshot.exists()) {
     return [];
   }
-
   const {
     logDebug = false,
     includeLikedStatus = false,
     defaultDateRange,
     filterCategory = null,
   } = options;
-
   let activities = [];
-
   snapshot.forEach((childSnapshot) => {
     const activityData = childSnapshot.val();
-
     // 1) Check for accepted and listed
     if (activityData.status === "Accepted" && activityData.listingStatus === "List") {
       // 2) If a category was specified, skip if it doesn't match
@@ -28,38 +23,33 @@ function filterExploreActivities(snapshot, options = {}) {
         }
         return; // Skip
       }
-
       // -----------------------------------------------------------------
-      // NEW LOGIC: Skip if startDate is in the past compared to "today"
+      // NEW LOGIC: Skip if endDate is in the past compared to "today"
       // -----------------------------------------------------------------
-      // We'll assume you only want to filter out if dateRange + startDate exist.
-      // If dateRange is missing or has no startDate, we let it pass (to avoid
+      // We'll assume you only want to filter out if dateRange + endDate exist.
+      // If dateRange is missing or has no endDate, we let it pass (to avoid
       // disturbing your existing "defaultDateRange" usage).
       if (
         activityData.dateRange &&
-        activityData.dateRange.startDate
+        activityData.dateRange.endDate
       ) {
         const today = new Date();
         today.setHours(0, 0, 0, 0); // zero out time for a pure date comparison
-
-        const startDate = new Date(activityData.dateRange.startDate);
-        startDate.setHours(0, 0, 0, 0);
-
-        if (startDate < today) {
+        const endDate = new Date(activityData.dateRange.endDate);
+        endDate.setHours(0, 0, 0, 0);
+        if (endDate < today) {
           if (logDebug) {
             console.log(
-              `[DEBUG] Skipping Activity: ${childSnapshot.key} (startDate is in the past: ${activityData.dateRange.startDate})`
+              `[DEBUG] Skipping Activity: ${childSnapshot.key} (endDate is in the past: ${activityData.dateRange.endDate})`
             );
           }
           return; // Skip
         }
       }
       // -----------------------------------------------------------------
-
       if (logDebug) {
         console.log(`[DEBUG] Including Activity: ${childSnapshot.key}`);
       }
-
       // Build the activity object including the category
       const activity = {
         id: childSnapshot.key,
@@ -71,11 +61,9 @@ function filterExploreActivities(snapshot, options = {}) {
             : defaultDateRange,
         activityCategory: activityData.activityCategory || '',
       };
-
       if (includeLikedStatus) {
         activity.likedStatus = activityData.likedStatus || false;
       }
-
       activities.push(activity);
     } else {
       if (logDebug) {
@@ -85,8 +73,6 @@ function filterExploreActivities(snapshot, options = {}) {
       }
     }
   });
-
   return activities;
 }
-
 module.exports = { filterExploreActivities };
