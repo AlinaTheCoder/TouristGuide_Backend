@@ -1,8 +1,10 @@
 // controllers/BookingController.js
-const { db, admin } = require('../config/db'); // added admin for email retrieval
+const { db, admin } = require('../config/db'); // Admin for email retrieval
 const moment = require('moment'); // for date/time formatting (optional but helpful)
 const stripe = require('../config/stripe');
 const sendEmail = require('../config/emailService'); // import email service
+
+const logger = require('../middleware/logger');
 
 // Helper function to update listingStatus if the activity is fully booked across its date range.
 async function checkAndUpdateListingStatus(activityId, activity) {
@@ -20,7 +22,7 @@ async function checkAndUpdateListingStatus(activityId, activity) {
     for (let m = startDate.clone(); m.isSameOrBefore(endDate, 'day'); m.add(1, 'days')) {
       const dateStr = m.format('YYYY-MM-DD');
       const dayData = bookingsData[dateStr];
-      // If there's no booking for this day or the total booked guests is less than the daily maximum, it's not fully booked.
+      // If there's no booking for this day or total booked guests is less than the daily maximum, it's not fully booked.
       if (!dayData || !dayData.totalGuestsForDay || dayData.totalGuestsForDay < activity.maxGuestsPerDay) {
         fullyBooked = false;
         break;
@@ -30,10 +32,10 @@ async function checkAndUpdateListingStatus(activityId, activity) {
     // If every day is fully booked and listingStatus is "List", update it to "UnList".
     if (fullyBooked && activity.listingStatus === "List") {
       await db.ref(`activities/${activityId}`).update({ listingStatus: "UnList" });
-      console.log(`[checkAndUpdateListingStatus] Activity ${activityId} fully booked. Updated listingStatus to UnList.`);
+      logger.info(`[checkAndUpdateListingStatus] Activity ${activityId} fully booked. Updated listingStatus to UnList.`);
     }
   } catch (err) {
-    console.error(`[checkAndUpdateListingStatus] Error: ${err.message}`);
+    logger.error(`[checkAndUpdateListingStatus] Error: ${err.message}`);
   }
 }
 
@@ -43,11 +45,13 @@ function getSlotDisplayLabel(activity, slotId) {
   const activityStartTime = moment(activity.startTime);
   const activityEndTime = moment(activity.endTime);
   const durationHours = parseInt(activity.duration);
+
   let current = activityStartTime.clone();
   while (current < activityEndTime) {
     const slotStart = current.clone();
     const slotEnd = current.clone().add(durationHours, 'hours');
     if (slotEnd > activityEndTime) break;
+
     const labelStart = slotStart.format("h:mm A")
       .replace("AM", "a.m.")
       .replace("PM", "p.m.");
@@ -55,11 +59,13 @@ function getSlotDisplayLabel(activity, slotId) {
       .replace("AM", "a.m.")
       .replace("PM", "p.m.");
     const displayLabel = `${labelStart} - ${labelEnd}`;
+
     const safeKey = displayLabel
       .replace(/\./g, '')
       .replace(/\s+/g, '_')
       .replace(/:/g, '-')
       .replace(/__+/g, '_');
+
     if (safeKey === slotId) {
       return displayLabel;
     }
@@ -85,7 +91,7 @@ exports.createPaymentIntent = async (req, res) => {
     const activity = activitySnap.val();
     const totalAmount = activity.pricePerGuest * requestedGuests * 100; // Stripe expects cents
 
-    console.log(`[createPaymentIntent] Amount: ${totalAmount}`);
+    logger.debug(`[createPaymentIntent] Amount: ${totalAmount}`);
 
     // Create PaymentIntent in Stripe
     const paymentIntent = await stripe.paymentIntents.create({
@@ -94,16 +100,15 @@ exports.createPaymentIntent = async (req, res) => {
       metadata: { activityId, userId, date, slotId, requestedGuests }
     });
 
-    console.log(`[createPaymentIntent] Payment Intent created: ${paymentIntent.id}`);
+    logger.info(`[createPaymentIntent] Payment Intent created: ${paymentIntent.id}`);
 
     return res.status(200).json({
       success: true,
       paymentIntentId: paymentIntent.id,
       clientSecret: paymentIntent.client_secret,
     });
-
   } catch (error) {
-    console.error("[createPaymentIntent] Error:", error);
+    logger.error("[createPaymentIntent] Error:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to create PaymentIntent",
@@ -122,10 +127,10 @@ exports.getTimeSlotsForDate = async (req, res) => {
     const { activityId } = req.params;
     const { date, requestedGuests } = req.query;
 
-    console.log('[getTimeSlotsForDate] activityId:', activityId, '| date:', date, '| requestedGuests:', requestedGuests);
+    logger.debug(`[getTimeSlotsForDate] activityId: ${activityId} | date: ${date} | requestedGuests: ${requestedGuests}`);
 
     if (!date) {
-      console.log('[getTimeSlotsForDate] Missing date param.');
+      logger.warn('[getTimeSlotsForDate] Missing date param.');
       return res.status(400).json({
         success: false,
         message: "Date query parameter is required (YYYY-MM-DD).",
@@ -135,14 +140,14 @@ exports.getTimeSlotsForDate = async (req, res) => {
     // 1) Read activity
     const snapshot = await db.ref(`activities/${activityId}`).once('value');
     if (!snapshot.exists()) {
-      console.log('[getTimeSlotsForDate] Activity not found:', activityId);
+      logger.warn('[getTimeSlotsForDate] Activity not found:', activityId);
       return res.status(404).json({
         success: false,
         message: "Activity not found",
       });
     }
     const activity = snapshot.val();
-    console.log('[getTimeSlotsForDate] Activity data fetched:', activity);
+    logger.debug('[getTimeSlotsForDate] Activity data fetched:', activity);
 
     // 2) Check date range
     const startDate = moment(activity.dateRange.startDate);
@@ -150,7 +155,7 @@ exports.getTimeSlotsForDate = async (req, res) => {
     const requestedDate = moment(date, 'YYYY-MM-DD');
 
     if (!requestedDate.isBetween(startDate, endDate, 'day', '[]')) {
-      console.log('[getTimeSlotsForDate] Date out of range:', date);
+      logger.warn('[getTimeSlotsForDate] Date out of range:', date);
       return res.status(400).json({
         success: false,
         message: "Requested date is out of the activity's dateRange.",
@@ -203,14 +208,14 @@ exports.getTimeSlotsForDate = async (req, res) => {
       };
     });
 
-    // is the entire day fully booked?
+    // Is the entire day fully booked?
     const totalGuestsForDay = bookingsData.totalGuestsForDay || 0;
     const dayFullyBooked = totalGuestsForDay >= activity.maxGuestsPerDay;
     if (dayFullyBooked) {
       results = []; // empty if fully booked
     }
 
-    // filter slots by requestedGuests if provided
+    // Filter slots by requestedGuests if provided
     if (requestedGuests) {
       const neededGuests = parseInt(requestedGuests, 10);
       if (!isNaN(neededGuests) && neededGuests > 0) {
@@ -218,7 +223,7 @@ exports.getTimeSlotsForDate = async (req, res) => {
       }
     }
 
-    console.log('[getTimeSlotsForDate] Final slot results:', results);
+    logger.debug('[getTimeSlotsForDate] Final slot results:', results);
 
     return res.status(200).json({
       success: true,
@@ -231,7 +236,7 @@ exports.getTimeSlotsForDate = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[getTimeSlotsForDate] Error:', error);
+    logger.error('[getTimeSlotsForDate] Error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error.',
@@ -242,7 +247,7 @@ exports.getTimeSlotsForDate = async (req, res) => {
 
 exports.bookTimeSlot = async (req, res) => {
   try {
-    console.log('[bookTimeSlot] Request body =>', req.body);
+    logger.debug('[bookTimeSlot] Request body =>', req.body);
 
     const { activityId } = req.params;
     const { date, slotId, requestedGuests, userId, paymentIntentId } = req.body;
@@ -251,7 +256,7 @@ exports.bookTimeSlot = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    console.log(`[bookTimeSlot] Verifying PaymentIntent: ${paymentIntentId}`);
+    logger.info(`[bookTimeSlot] Verifying PaymentIntent: ${paymentIntentId}`);
 
     // 1) Retrieve PaymentIntent from Stripe
     let paymentIntent;
@@ -261,21 +266,21 @@ exports.bookTimeSlot = async (req, res) => {
         return res.status(400).json({ success: false, message: "Invalid PaymentIntent ID." });
       }
     } catch (error) {
-      console.error("[bookTimeSlot] Error fetching PaymentIntent:", error);
+      logger.error("[bookTimeSlot] Error fetching PaymentIntent:", error);
       return res.status(500).json({ success: false, message: "Error verifying payment." });
     }
 
     // 2) Check Payment Status
     const validStatuses = ['succeeded', 'processing', 'requires_capture'];
     if (!validStatuses.includes(paymentIntent.status)) {
-      console.log(`[bookTimeSlot] Payment status is '${paymentIntent.status}', booking cannot proceed.`);
+      logger.warn(`[bookTimeSlot] Payment status is '${paymentIntent.status}', booking cannot proceed.`);
       return res.status(400).json({
         success: false,
         message: `Payment not completed. Current status: ${paymentIntent.status}`,
       });
     }
 
-    console.log(`[bookTimeSlot] Payment verified successfully with status '${paymentIntent.status}'. Finalizing booking...`);
+    logger.info(`[bookTimeSlot] Payment verified successfully with status '${paymentIntent.status}'. Finalizing booking...`);
 
     // 3) Fetch activity details
     const activitySnap = await db.ref(`activities/${activityId}`).once('value');
@@ -299,11 +304,11 @@ exports.bookTimeSlot = async (req, res) => {
       const currentDayGuests = dayData.totalGuestsForDay;
 
       if (currentSlotGuests + requestedGuests > activity.maxGuestsPerTime) {
-        console.log(`[bookTimeSlot] Slot is full. Booking rejected.`);
+        logger.warn(`[bookTimeSlot] Slot is full. Booking rejected.`);
         return; // transaction fails
       }
       if (currentDayGuests + requestedGuests > activity.maxGuestsPerDay) {
-        console.log(`[bookTimeSlot] Max daily guests reached. Booking rejected.`);
+        logger.warn(`[bookTimeSlot] Max daily guests reached. Booking rejected.`);
         return;
       }
 
@@ -324,7 +329,7 @@ exports.bookTimeSlot = async (req, res) => {
     });
 
     if (!transactionResult.committed) {
-      console.log(`[bookTimeSlot] Transaction failed due to overbooking.`);
+      logger.warn(`[bookTimeSlot] Transaction failed due to overbooking.`);
       return res.status(400).json({ success: false, message: "Slot fully booked. Please choose another." });
     }
 
@@ -357,32 +362,27 @@ Thank you for booking with us!`,
 <p><strong>Number of Guests:</strong> ${requestedGuests}</p>
 <p>Thank you for booking with us!</p>`
         });
+
         if (!emailResponse.success) {
-          console.error('[bookTimeSlot] Booking confirmation email sending failed:', emailResponse.error);
+          logger.error('[bookTimeSlot] Booking confirmation email sending failed:', emailResponse.error);
         } else {
-          console.log('[bookTimeSlot] Booking confirmation email sent successfully.');
+          logger.info('[bookTimeSlot] Booking confirmation email sent successfully.');
         }
       }
     } catch (emailErr) {
-      console.error('[bookTimeSlot] Error retrieving user email or sending email:', emailErr);
+      logger.error('[bookTimeSlot] Error retrieving user email or sending email:', emailErr);
     }
 
-
-    // here 
+    // 7) Notify host
     try {
-      // You must have a "hostId" (or similar) in your activity node.
-      // If your DB structure uses a different field name, adjust accordingly.
       if (activity.hostId) {
-        // 1) Fetch host's record from Firebase Auth
         const hostRecord = await admin.auth().getUser(activity.hostId);
         if (hostRecord && hostRecord.email) {
-          // 2) Compose the email
           const userSnapshot = await db.ref(`users/${userId}`).once('value');
           const userData = userSnapshot.val();
           const userName = (userData && userData.name) ? userData.name : "a customer";
 
           const slotLabel = getSlotDisplayLabel(activity, slotId) || "Timing not available";
-          // We can also show the host’s name from activity.hostName or from the host’s user record, your choice.
           const hostName = activity.hostName || "Host";
 
           const hostEmailResponse = await sendEmail({
@@ -407,24 +407,23 @@ Thank you for hosting on our platform!`,
           });
 
           if (!hostEmailResponse.success) {
-            console.error('[bookTimeSlot] Host email sending failed:', hostEmailResponse.error);
+            logger.error('[bookTimeSlot] Host email sending failed:', hostEmailResponse.error);
           } else {
-            console.log('[bookTimeSlot] Notification email sent successfully to host.');
+            logger.info('[bookTimeSlot] Notification email sent successfully to host.');
           }
         }
       }
     } catch (hostEmailErr) {
-      console.error('[bookTimeSlot] Error retrieving host email or sending email:', hostEmailErr);
+      logger.error('[bookTimeSlot] Error retrieving host email or sending email:', hostEmailErr);
     }
 
-    console.log('[bookTimeSlot] Booking confirmed!');
+    logger.info('[bookTimeSlot] Booking confirmed!');
     return res.status(200).json({
       success: true,
       message: "Booking successful!",
     });
-
   } catch (error) {
-    console.error('[bookTimeSlot] Error:', error);
+    logger.error('[bookTimeSlot] Error:', error);
     return res.status(500).json({
       success: false,
       message: "Internal server error.",

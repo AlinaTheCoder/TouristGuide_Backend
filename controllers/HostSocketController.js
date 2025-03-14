@@ -1,4 +1,6 @@
-const { db } = require('../config/db'); // If you have { db } in your config/db.js
+// controllers/HostActivitiesSocket.js
+const { db, admin } = require('../config/db');
+const logger = require('../middleware/logger');
 
 /**
  * Sets up real-time listeners on the 'activities' node in Firebase,
@@ -12,7 +14,7 @@ exports.setupHostActivitiesSocket = (io) => {
     const newData = snapshot.val();
     const activityId = snapshot.key;
 
-    console.log('[SOCKET] Activity added:', activityId, newData);
+    logger.debug('[SOCKET] Activity added:', activityId, newData);
     io.emit('activities-changed', { activityId, updatedData: newData });
   });
 
@@ -21,7 +23,7 @@ exports.setupHostActivitiesSocket = (io) => {
     const updatedData = snapshot.val();
     const activityId = snapshot.key;
 
-    console.log('[SOCKET] Activity changed:', activityId, updatedData);
+    logger.debug('[SOCKET] Activity changed:', activityId, updatedData);
     io.emit('activities-changed', { activityId, updatedData });
   });
 
@@ -30,7 +32,7 @@ exports.setupHostActivitiesSocket = (io) => {
     const removedData = snapshot.val();
     const activityId = snapshot.key;
 
-    console.log('[SOCKET] Activity removed:', activityId, removedData);
+    logger.debug('[SOCKET] Activity removed:', activityId, removedData);
     io.emit('activities-removed', { activityId, removedData });
   });
 };

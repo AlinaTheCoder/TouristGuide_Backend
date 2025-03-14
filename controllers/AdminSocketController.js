@@ -1,5 +1,6 @@
 // controllers/AdminSocketController.js
 const { db } = require('../config/db');
+const logger = require('../middleware/logger'); 
 
 /**
  * Listens for changes on the 'activities' node in Firebase.
@@ -60,7 +61,8 @@ const setupAdminSocketListeners = (io) => {
       data: rejectedActivities,
     });
   }, (error) => {
-    console.error('Error listening for admin activities:', error);
+    // Changed from console.error to logger.error
+    logger.error(`Error listening for admin activities: ${error}`);
   });
 };
 

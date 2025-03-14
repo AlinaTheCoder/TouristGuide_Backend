@@ -1,2 +1,5 @@
 node_modules/
 .env
+
+# Ignore ALL JSON files in config folder
+config/*.json

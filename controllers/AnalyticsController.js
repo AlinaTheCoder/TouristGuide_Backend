@@ -1,5 +1,7 @@
 // controllers/Analytics/AnalyticsController.js
 const { db, admin } = require('../config/db');
+const logger = require('../middleware/logger'); 
+
 exports.getHostBookings = async (req, res) => {
   try {
     const { hostId } = req.params;
@@ -13,7 +15,8 @@ exports.getHostBookings = async (req, res) => {
         hostName = userData.name || ''; // fallback to empty string if no name
       }
     } catch (err) {
-      console.error('[getHostBookings] Error fetching user node:', err);
+      // Changed from console.error to logger.error
+      logger.error(`[getHostBookings] Error fetching user node: ${err}`);
       // We'll leave hostName as ''
     }
 
@@ -103,7 +106,8 @@ exports.getHostBookings = async (req, res) => {
     // Return the user-based hostName + any found bookings
     return res.status(200).json({ hostName, bookings });
   } catch (error) {
-    console.error('Error fetching host bookings:', error);
+    // Changed from console.error to logger.error
+    logger.error(`Error fetching host bookings: ${error}`);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };

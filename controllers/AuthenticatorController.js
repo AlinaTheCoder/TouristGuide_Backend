@@ -1,5 +1,6 @@
-// AuthenticatorController.js
+// controllers/AuthenticatorController.js
 const { db, admin, auth, signInWithEmailAndPassword } = require('../config/db');
+const logger = require('../middleware/logger');
 
 // Map Firebase Admin SDK Errors to User-Friendly Messages
 function mapFirebaseAdminError(code) {
@@ -84,7 +85,8 @@ async function Signup(req, res) {
       },
     });
   } catch (error) {
-    console.error('Error creating user:', error);
+    // Changed from console.error to logger.error
+    logger.error(`Error creating user: ${error}`);
     const errorCode = error.code || 'unknown';
     const errorMessage = mapFirebaseAdminError(errorCode);
     res.status(400).send({ error: errorMessage });
@@ -119,7 +121,8 @@ async function Login(req, res) {
       loginWithGoogle,
     });
   } catch (error) {
-    console.error('Error during login:', error);
+    // Changed from console.error to logger.error
+    logger.error(`Error during login: ${error}`);
     const errorCode = error.code || 'unknown';
     const errorMessage = mapFirebaseError(errorCode, 'login');
     res.status(400).send({ error: errorMessage });
@@ -142,7 +145,8 @@ const LoginWithGoogle = async (req, res) => {
 
     // Check if user already exists
     if (snapshot.exists()) {
-      console.log('User already exists in the database.');
+      // Changed from console.log to logger.debug
+      logger.debug('User already exists in the database.');
       return res.status(200).send({ message: 'User already exists.' });
     }
 
@@ -154,10 +158,12 @@ const LoginWithGoogle = async (req, res) => {
       loginWithGoogle: loginWithGoogle || 1,
     });
 
-    console.log('User saved successfully!');
+    // Changed from console.log to logger.info (success)
+    logger.info('User saved successfully!');
     return res.status(200).send({ message: 'User saved successfully!' });
   } catch (error) {
-    console.error('Error saving user data:', error.message);
+    // Changed from console.error to logger.error
+    logger.error(`Error saving user data: ${error.message}`);
     return res.status(500).send({ error: 'Failed to save user data.' });
   }
 };

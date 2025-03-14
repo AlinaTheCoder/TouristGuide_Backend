@@ -1,5 +1,7 @@
+// controllers/EmailVerificationController.js
 const nodemailer = require('nodemailer');
-const { db, admin } = require('../config/db'); // Assuming you export your Firebase RTDB instance as "db"
+const { db, admin } = require('../config/db');
+const logger = require('../middleware/logger'); 
 
 // -----------------------------------------------------------------------
 // Helper: Sanitize email to use as a Firebase key (Firebase keys cannot include ".")
@@ -32,16 +34,16 @@ function generateOTP() {
 const sendOTP = async (req, res) => {
   const { email } = req.body;
   if (!email) {
-    console.error('[sendOTP] No email provided.');
+    logger.error('[sendOTP] No email provided.');
     return res.status(400).send({ error: 'Email is required.' });
   }
 
   // -----------------------------------------------------------------------
-  // New Step: Check if the email is already registered in Firebase Authentication
+  // Check if the email is already registered in Firebase Authentication
   try {
     const userRecord = await admin.auth().getUserByEmail(email);
     if (userRecord) {
-      console.error(`[sendOTP] Email already exists: ${email}`);
+      logger.error(`[sendOTP] Email already exists: ${email}`);
       return res
         .status(400)
         .send({ error: 'Email already exists. Please use a different email.' });
@@ -49,7 +51,7 @@ const sendOTP = async (req, res) => {
   } catch (err) {
     // If error code is 'auth/user-not-found', then it's OK to proceed.
     if (err.code !== 'auth/user-not-found') {
-      console.error(`[sendOTP] Error checking email existence: ${err.message}`);
+      logger.error(`[sendOTP] Error checking email existence: ${err.message}`);
       return res.status(500).send({ error: 'Error checking email existence.' });
     }
     // Else, no user exists—proceed with OTP generation.
@@ -68,7 +70,7 @@ const sendOTP = async (req, res) => {
       otp,
       expiresAt,
     });
-    console.log(`[sendOTP] OTP generated for ${email}: ${otp} (expires at ${expiresAt})`);
+    logger.info(`[sendOTP] OTP generated for ${email}: ${otp} (expires at ${expiresAt})`);
 
     // Prepare email content
     const mailOptions = {
@@ -81,27 +83,27 @@ const sendOTP = async (req, res) => {
     // Send the OTP email
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
-        console.error('[sendOTP] Error sending OTP email:', error);
+        logger.error('[sendOTP] Error sending OTP email:', error);
         return res.status(500).send({ error: 'Failed to send OTP email.' });
       } else {
-        console.log('[sendOTP] OTP email sent:', info.response);
+        logger.info(`[sendOTP] OTP email sent: ${info.response}`);
         return res.status(200).send({ message: 'OTP sent successfully.' });
       }
     });
   } catch (error) {
-    console.error('[sendOTP] Error:', error);
+    logger.error('[sendOTP] Error:', error);
     return res.status(500).send({ error: 'Failed to send OTP.' });
   }
 };
 
-//
-// Controller: verifyOTP (unchanged)
+// -----------------------------------------------------------------------
+// Controller: verifyOTP
 // This endpoint accepts an email and an OTP, verifies the OTP (and its expiration),
 // and, if valid, deletes the OTP record.
 const verifyOTP = async (req, res) => {
   const { email, otp: userOTP } = req.body;
   if (!email || !userOTP) {
-    console.error('[verifyOTP] Missing email or OTP.');
+    logger.error('[verifyOTP] Missing email or OTP.');
     return res.status(400).send({ error: 'Email and OTP are required.' });
   }
 
@@ -113,31 +115,29 @@ const verifyOTP = async (req, res) => {
     const data = snapshot.val();
 
     if (!data) {
-      console.error(`[verifyOTP] No OTP record found for ${email}.`);
+      logger.error(`[verifyOTP] No OTP record found for ${email}.`);
       return res.status(400).send({ error: 'OTP not found. Please request a new one.' });
     }
 
     if (Date.now() > data.expiresAt) {
-      console.warn(`[verifyOTP] OTP for ${email} has expired.`);
+      logger.warn(`[verifyOTP] OTP for ${email} has expired.`);
       await otpRef.remove(); // Remove expired OTP
       return res.status(400).send({ error: 'OTP has expired. Please request a new one.' });
     }
 
     if (data.otp !== userOTP) {
-      console.warn(
+      logger.warn(
         `[verifyOTP] Invalid OTP for ${email}. Entered: ${userOTP}, Expected: ${data.otp}`
       );
       return res.status(200).send({ success: false, message: 'Wrong OTP, Signup Unsuccessful!' });
-
-
     }
 
     // OTP is valid—remove it from the database to prevent reuse
     await otpRef.remove();
-    console.log(`[verifyOTP] OTP verified successfully for ${email}.`);
+    logger.info(`[verifyOTP] OTP verified successfully for ${email}.`);
     return res.status(200).send({ message: 'OTP verified successfully.' });
   } catch (error) {
-    console.error('[verifyOTP] Error:', error);
+    logger.error('[verifyOTP] Error:', error);
     return res.status(500).send({ error: 'Failed to verify OTP.' });
   }
 };

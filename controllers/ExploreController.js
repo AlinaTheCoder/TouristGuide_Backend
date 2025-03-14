@@ -1,15 +1,16 @@
 // controllers/ExploreController.js
+const logger = require('../middleware/logger');
 const { db } = require('../config/db');
 const { filterExploreActivities } = require('../utils/Explore');
 
 exports.getAllListedExploreActivities = async (req, res) => {
   try {
-    console.log('[DEBUG] Fetching all explore activities with status "Accepted" and listingStatus "List"...');
+    logger.debug('[DEBUG] Fetching all explore activities with status "Accepted" and listingStatus "List"...');
     const activitiesRef = db.ref('activities');
     const snapshot = await activitiesRef.once('value');
 
     if (!snapshot.exists()) {
-      console.log('[DEBUG] No activities found in the database.');
+      logger.debug('[DEBUG] No activities found in the database.');
       return res.status(200).json({
         success: true,
         message: 'No activities found.',
@@ -28,7 +29,7 @@ exports.getAllListedExploreActivities = async (req, res) => {
       filterCategory: category, // <-- new option
     });
 
-    console.log(`[DEBUG] Total Listed Explore Activities: ${exploreActivities.length}`);
+    logger.debug(`[DEBUG] Total Listed Explore Activities: ${exploreActivities.length}`);
 
     return res.status(200).json({
       success: true,
@@ -36,7 +37,7 @@ exports.getAllListedExploreActivities = async (req, res) => {
       data: exploreActivities,
     });
   } catch (error) {
-    console.error('[ExploreController] Error fetching explore activities:', error);
+    logger.error('[ExploreController] Error fetching explore activities:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error.',

@@ -2,6 +2,7 @@
 const { db, admin } = require('../config/db');
 const sendEmail = require('../config/emailService');
 const { transformPendingActivity, transformActivityImage } = require('../utils/Admin');
+const logger = require('../middleware/logger');
 
 exports.getPendingRequests = async (req, res) => {
   try {
@@ -21,63 +22,64 @@ exports.getPendingRequests = async (req, res) => {
       snapshot.forEach((childSnapshot) => {
         const activityData = childSnapshot.val();
 
-        // Detailed logging
-        console.log('[DEBUG] Pending Activity Details:', {
+        // Changed from console.log to logger.debug
+        logger.debug('[DEBUG] Pending Activity Details:', {
           id: childSnapshot.key,
           activityTitle: activityData.activityTitle,
           createdAt: activityData.createdAt,
           images: activityData.activityImages,
-          fullData: activityData
+          fullData: activityData,
         });
 
         pendingActivities.push(transformPendingActivity(childSnapshot));
       });
     }
 
-    // Detailed logging of overall results
-    console.log('[DEBUG] Pending Requests Summary:', {
+    // Changed from console.log to logger.debug
+    logger.debug('[DEBUG] Pending Requests Summary:', {
       hasPendingActivities: hasPending,
-      totalPendingActivities: pendingActivities.length
+      totalPendingActivities: pendingActivities.length,
     });
 
     return res.status(200).json({
       success: true,
       hasPending,
       activitiesCount: pendingActivities.length,
-      data: pendingActivities
+      data: pendingActivities,
     });
   } catch (error) {
-    console.error('[AdminController] Error fetching pending requests:', error);
+    // Changed from console.error to logger.error
+    logger.error('[AdminController] Error fetching pending requests:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error.',
-      error: error.message
+      error: error.message,
     });
   }
 };
 
 exports.fetchActivityDetailsById = async (req, res) => {
   try {
-    console.log('------- FETCH ACTIVITY DETAILS START -------');
-    console.log('Request Method:', req.method);
-    console.log('Request URL:', req.originalUrl);
-    console.log('Request Params:', req.params);
-    console.log('Query Params:', req.query);
+    logger.debug('------- FETCH ACTIVITY DETAILS START -------');
+    logger.debug(`Request Method: ${req.method}`);
+    logger.debug(`Request URL: ${req.originalUrl}`);
+    logger.debug('Request Params:', req.params);
+    logger.debug('Query Params:', req.query);
 
     const { activityId } = req.params;
     const { includeVerificationDetails, includeLikedStatus } = req.query;
 
-    console.log('Activity ID:', activityId);
-    console.log('Include Verification Details:', includeVerificationDetails);
-    console.log('Include Liked Status:', includeLikedStatus);
+    logger.debug(`Activity ID: ${activityId}`);
+    logger.debug(`Include Verification Details: ${includeVerificationDetails}`);
+    logger.debug(`Include Liked Status: ${includeLikedStatus}`);
 
     const activityRef = db.ref(`activities/${activityId}`);
-    console.log('Firebase Reference Created:', `activities/${activityId}`);
+    logger.debug(`Firebase Reference Created: activities/${activityId}`);
 
     const snapshot = await activityRef.once('value');
-    console.log('Snapshot Exists:', snapshot.exists());
+    logger.debug(`Snapshot Exists: ${snapshot.exists()}`);
     if (!snapshot.exists()) {
-      console.error('Activity not found for ID:', activityId);
+      logger.error(`Activity not found for ID: ${activityId}`);
       return res.status(404).json({
         success: false,
         message: 'Activity not found',
@@ -85,7 +87,7 @@ exports.fetchActivityDetailsById = async (req, res) => {
     }
 
     const activityData = snapshot.val();
-    console.log('Raw Activity Data:', JSON.stringify(activityData, null, 2));
+    logger.debug('Raw Activity Data:', JSON.stringify(activityData, null, 2));
 
     const responseData = {
       ...activityData,
@@ -95,38 +97,38 @@ exports.fetchActivityDetailsById = async (req, res) => {
     if (includeVerificationDetails === 'true') {
       responseData.acceptedAt = activityData.acceptedAt || null;
       responseData.rejectedAt = activityData.rejectedAt || null;
-      console.log('Verification Details Included:');
-      console.log('Accepted At:', responseData.acceptedAt);
-      console.log('Rejected At:', responseData.rejectedAt);
+      logger.debug('Verification Details Included:');
+      logger.debug(`Accepted At: ${responseData.acceptedAt}`);
+      logger.debug(`Rejected At: ${responseData.rejectedAt}`);
     }
-    
+
     if (includeLikedStatus === 'true') {
-      // Include likedStatus (default false if not set)
       responseData.likedStatus = activityData.likedStatus || false;
-      console.log('Liked Status Included:', responseData.likedStatus);
+      logger.debug(`Liked Status Included: ${responseData.likedStatus}`);
     }
-    
-    console.log('Final Response Data:', JSON.stringify(responseData, null, 2));
-    console.log('------- FETCH ACTIVITY DETAILS SUCCESS -------');
+
+    logger.debug('Final Response Data:', JSON.stringify(responseData, null, 2));
+    logger.debug('------- FETCH ACTIVITY DETAILS SUCCESS -------');
+
     return res.status(200).json({
       success: true,
       data: responseData,
     });
   } catch (error) {
-    console.error('Error fetching activity details:', error);
+    logger.error('Error fetching activity details:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
       error: error.message,
     });
   } finally {
-    console.log('------- FETCH ACTIVITY DETAILS END -------');
+    logger.debug('------- FETCH ACTIVITY DETAILS END -------');
   }
 };
 
 exports.acceptActivity = async (req, res) => {
   try {
-    console.log('------- ACCEPT ACTIVITY START -------');
+    logger.debug('------- ACCEPT ACTIVITY START -------');
 
     const { activityId } = req.params;
     const acceptedAt = new Date().toISOString();
@@ -137,7 +139,7 @@ exports.acceptActivity = async (req, res) => {
     // Check if the activity exists
     const snapshot = await activityRef.once('value');
     if (!snapshot.exists()) {
-      console.log('Activity not found:', activityId);
+      logger.debug(`Activity not found: ${activityId}`);
       return res.status(404).json({
         success: false,
         message: 'Activity not found',
@@ -151,7 +153,7 @@ exports.acceptActivity = async (req, res) => {
     const userRecord = await admin.auth().getUser(hostUid);
 
     if (!userRecord.email) {
-      console.error('[AcceptActivity] No email associated with the host:', hostUid);
+      logger.error('[AcceptActivity] No email associated with the host:', hostUid);
       return res.status(400).json({
         success: false,
         message: 'Host does not have an email associated.',
@@ -178,10 +180,11 @@ exports.acceptActivity = async (req, res) => {
     });
 
     if (!emailResponse.success) {
-      console.error('[AcceptActivity] Email sending failed:', emailResponse.error);
+      logger.error('[AcceptActivity] Email sending failed:', emailResponse.error);
     }
 
-    console.log('Activity successfully accepted:', activityId);
+    // Changed from console.log to logger.info for success
+    logger.info(`Activity successfully accepted: ${activityId}`);
     return res.status(200).json({
       success: true,
       message: 'Activity successfully accepted',
@@ -189,20 +192,20 @@ exports.acceptActivity = async (req, res) => {
       emailSent: emailResponse.success,
     });
   } catch (error) {
-    console.error('[AcceptActivity] Error accepting activity:', error);
+    logger.error('[AcceptActivity] Error accepting activity:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
       error: error.message,
     });
   } finally {
-    console.log('------- ACCEPT ACTIVITY END -------');
+    logger.debug('------- ACCEPT ACTIVITY END -------');
   }
 };
 
 exports.rejectActivity = async (req, res) => {
   try {
-    console.log('------- REJECT ACTIVITY START -------');
+    logger.debug('------- REJECT ACTIVITY START -------');
 
     const { activityId } = req.params;
     const rejectedAt = new Date().toISOString();
@@ -212,7 +215,7 @@ exports.rejectActivity = async (req, res) => {
     const snapshot = await activityRef.once('value');
 
     if (!snapshot.exists()) {
-      console.log('Activity not found:', activityId);
+      logger.debug(`Activity not found: ${activityId}`);
       return res.status(404).json({
         success: false,
         message: 'Activity not found',
@@ -226,7 +229,7 @@ exports.rejectActivity = async (req, res) => {
     const userRecord = await admin.auth().getUser(hostUid);
 
     if (!userRecord.email) {
-      console.error('[RejectActivity] No email associated with the host:', hostUid);
+      logger.error('[RejectActivity] No email associated with the host:', hostUid);
       return res.status(400).json({
         success: false,
         message: 'Host does not have an email associated.',
@@ -253,10 +256,11 @@ exports.rejectActivity = async (req, res) => {
     });
 
     if (!emailResponse.success) {
-      console.error('[RejectActivity] Email sending failed:', emailResponse.error);
+      logger.error('[RejectActivity] Email sending failed:', emailResponse.error);
     }
 
-    console.log('Activity successfully rejected:', activityId);
+    // Changed from console.log to logger.info for success
+    logger.info(`Activity successfully rejected: ${activityId}`);
     return res.status(200).json({
       success: true,
       message: 'Activity successfully rejected',
@@ -264,20 +268,20 @@ exports.rejectActivity = async (req, res) => {
       emailSent: emailResponse.success,
     });
   } catch (error) {
-    console.error('[RejectActivity] Error rejecting activity:', error);
+    logger.error('[RejectActivity] Error rejecting activity:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
       error: error.message,
     });
   } finally {
-    console.log('------- REJECT ACTIVITY END -------');
+    logger.debug('------- REJECT ACTIVITY END -------');
   }
 };
 
 exports.fetchAllAcceptedActivities = async (req, res) => {
   try {
-    console.log('[AdminController] fetchAllAcceptedActivities called');
+    logger.debug('[AdminController] fetchAllAcceptedActivities called');
 
     // Reference to activities in Realtime Database
     const activitiesRef = db.ref('activities');
@@ -290,7 +294,7 @@ exports.fetchAllAcceptedActivities = async (req, res) => {
 
     // If no accepted activities are found, return an empty array
     if (!snapshot.exists()) {
-      console.log('[DEBUG] No accepted activities found');
+      logger.debug('[DEBUG] No accepted activities found');
       return res.status(200).json({
         success: true,
         data: [], // No accepted activities
@@ -301,19 +305,19 @@ exports.fetchAllAcceptedActivities = async (req, res) => {
     const acceptedActivities = [];
     snapshot.forEach((childSnapshot) => {
       const activityDetails = transformActivityImage(childSnapshot, 'No Image');
-      console.log('[DEBUG] Accepted Activity Details:', JSON.stringify(activityDetails, null, 2));
-      console.log(activityDetails.activityTitle);
+      logger.debug('[DEBUG] Accepted Activity Details:', JSON.stringify(activityDetails, null, 2));
+      logger.debug(activityDetails.activityTitle);
       acceptedActivities.push(activityDetails);
     });
 
-    console.log('[DEBUG] Accepted Activities Count:', acceptedActivities.length);
+    logger.debug('[DEBUG] Accepted Activities Count:', acceptedActivities.length);
 
     return res.status(200).json({
       success: true,
       data: acceptedActivities,
     });
   } catch (error) {
-    console.error('[AdminController] Error fetching accepted activities:', error);
+    logger.error('[AdminController] Error fetching accepted activities:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -324,7 +328,7 @@ exports.fetchAllAcceptedActivities = async (req, res) => {
 
 exports.fetchAllRejectedActivities = async (req, res) => {
   try {
-    console.log('[AdminController] fetchAllRejectedActivities called');
+    logger.debug('[AdminController] fetchAllRejectedActivities called');
 
     // Reference to activities in Realtime Database
     const activitiesRef = db.ref('activities');
@@ -337,7 +341,7 @@ exports.fetchAllRejectedActivities = async (req, res) => {
 
     // If no rejected activities are found, return an empty array
     if (!snapshot.exists()) {
-      console.log('[DEBUG] No rejected activities found');
+      logger.debug('[DEBUG] No rejected activities found');
       return res.status(200).json({
         success: true,
         data: [], // No rejected activities
@@ -348,18 +352,18 @@ exports.fetchAllRejectedActivities = async (req, res) => {
     const rejectedActivities = [];
     snapshot.forEach((childSnapshot) => {
       const activityDetails = transformActivityImage(childSnapshot, 'No Image');
-      console.log('[DEBUG] Rejected Activity Details:', JSON.stringify(activityDetails, null, 2));
+      logger.debug('[DEBUG] Rejected Activity Details:', JSON.stringify(activityDetails, null, 2));
       rejectedActivities.push(activityDetails);
     });
 
-    console.log('[DEBUG] Rejected Activities Count:', rejectedActivities.length);
+    logger.debug('[DEBUG] Rejected Activities Count:', rejectedActivities.length);
 
     return res.status(200).json({
       success: true,
       data: rejectedActivities,
     });
   } catch (error) {
-    console.error('[AdminController] Error fetching rejected activities:', error);
+    logger.error('[AdminController] Error fetching rejected activities:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',

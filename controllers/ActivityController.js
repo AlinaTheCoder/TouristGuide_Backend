@@ -1,7 +1,10 @@
+// controllers/YourControllerFile.js
 
 const { db } = require('../config/db');
-const cloudinary = require('../config/cloudinaryConfig'); // Import Cloudinary
+const cloudinary = require('../config/cloudinaryConfig'); 
 
+// Import Winston logger
+const logger = require('../middleware/logger');
 
 const CreateActivity = async (req, res) => {
   const {
@@ -14,7 +17,8 @@ const CreateActivity = async (req, res) => {
     hostInfo,
   } = req.body;
 
-  console.log('Received Data:', {
+  // Changed from console.log to logger.debug
+  logger.debug('Received Data:', {
     activityInfo,
     locationInfo,
     scheduleInfo,
@@ -34,6 +38,7 @@ const CreateActivity = async (req, res) => {
   if (!imagesInfo.profileImage?.uri) {
     return res.status(400).send({ error: 'A profile image is required.' });
   }
+
   try {
     const uploadedActivityImages = [];
     let certificateUri = ''; // Initialize as empty string instead of using hostInfo.certificateUri
@@ -92,10 +97,12 @@ const CreateActivity = async (req, res) => {
 
     await newActivityRef.set(newActivity);
 
-    console.log('Activity Created Successfully:', newActivityId);
+    // Changed from console.log to logger.info
+    logger.info(`Activity Created Successfully: ${newActivityId}`);
     res.status(201).send({ message: 'Activity created successfully!', activityId: newActivityId });
   } catch (error) {
-    console.error('Error creating activity:', error.message);
+    // Changed from console.error to logger.error
+    logger.error(`Error creating activity: ${error.message}`);
     res.status(500).send({ error: 'Failed to create activity.' });
   }
 };
@@ -106,17 +113,15 @@ const uploadToCloudinary = async (req, res) => {
       return res.status(400).json({ error: 'No file received' });
     }
 
-
-
     const { fileType } = req.body;
-    const folder = fileType === 'activityImage' ? 'touristguide/activityImages' :
-      fileType === 'profileImage' ? 'touristguide/profileImages' :
-        'touristguide/certificates';
+    const folder = fileType === 'activityImage'
+      ? 'touristguide/activityImages'
+      : fileType === 'profileImage'
+      ? 'touristguide/profileImages'
+      : 'touristguide/certificates';
 
-
-    console.log('Incoming File Data:', req.file);
-
-
+    // Changed from console.log to logger.debug
+    logger.debug('Incoming File Data:', req.file);
 
     // Convert buffer to base64 for Cloudinary upload
     const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
@@ -125,28 +130,17 @@ const uploadToCloudinary = async (req, res) => {
       resource_type: fileType === 'certificate' ? 'raw' : 'image',
     });
 
-    console.log('Uploaded to Cloudinary:', result.secure_url);
+    // Changed from console.log to logger.info
+    logger.info(`Uploaded to Cloudinary: ${result.secure_url}`);
     res.status(201).json({ url: result.secure_url });
   } catch (error) {
-    console.error('Error uploading to Cloudinary:', error.message);
+    // Changed from console.error to logger.error
+    logger.error(`Error uploading to Cloudinary: ${error.message}`);
     res.status(500).json({ error: 'Server error during file upload.' });
   }
 };
 
-
 module.exports = {
   uploadToCloudinary,
-  CreateActivity
+  CreateActivity,
 };
-
-
-
-
-
-
-
-
-
-
-
-

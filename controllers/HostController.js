@@ -1,5 +1,6 @@
 // controllers/HostController.js
-const { db } = require('../config/db');
+const { db, admin } = require('../config/db'); 
+const logger = require('../middleware/logger');
 const { transformListedActivity } = require('../utils/Host');
 
 exports.getAllListedActivitiesByHostId = async (req, res) => {
@@ -7,14 +8,14 @@ exports.getAllListedActivitiesByHostId = async (req, res) => {
     const { hostId } = req.params; // Getting hostId from request parameters
 
     if (!hostId) {
-      console.error('[ERROR] Missing hostId in request');
+      logger.error('[ERROR] Missing hostId in request');
       return res.status(400).json({
         success: false,
         message: 'Host ID is required.',
       });
     }
 
-    console.log(`[DEBUG] Fetching activities for hostId: ${hostId}`);
+    logger.debug(`[DEBUG] Fetching activities for hostId: ${hostId}`);
 
     const activitiesRef = db.ref('activities');
 
@@ -24,7 +25,6 @@ exports.getAllListedActivitiesByHostId = async (req, res) => {
       .equalTo(hostId)
       .once('value');
 
-    // Check if activities exist for this host
     const hasListedActivities = snapshot.exists();
     const listedActivities = [];
 
@@ -37,7 +37,7 @@ exports.getAllListedActivitiesByHostId = async (req, res) => {
       });
     }
 
-    console.log('[DEBUG] Listed Activities Summary:', {
+    logger.debug('[DEBUG] Listed Activities Summary:', {
       hasListedActivities,
       totalListedActivities: listedActivities.length,
     });
@@ -49,7 +49,7 @@ exports.getAllListedActivitiesByHostId = async (req, res) => {
       data: listedActivities,
     });
   } catch (error) {
-    console.error('[HostController] Error fetching listed activities:', error);
+    logger.error('[HostController] Error fetching listed activities:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error.',

@@ -1,8 +1,8 @@
 // controllers/SearchController.js
-const { db } = require('../config/db'); // Ensure db is your Firebase RTDB instance
+const { db, admin } = require('../config/db');
+const logger = require('../middleware/logger'); 
 
-// -------------------------
-// Province -> City mapping (unchanged)
+// Province -> City mapping 
 const provinceCityMapping = {
   Punjab: [
     "Ahmadpur East", "Alipur", "Attock", "Bahawalnagar", "Bahawalpur",
@@ -23,34 +23,25 @@ const provinceCityMapping = {
   ]
 };
 
-// -------------------------
 // Helper: parse ISO date string
 function parseISODate(dateString) {
   return new Date(dateString);
 }
 
-// -------------------------
 // Helper: Check date-range overlap
 function isDateOverlap(selectedStart, selectedEnd, activityStart, activityEnd) {
   return selectedEnd >= activityStart && selectedStart <= activityEnd;
 }
 
-// -------------------------
-// Age group check: user picks a category, activity has an ageGroup
+// Helper: Age group check
 function doesAgeGroupMatch(userCategory, activityCat) {
-  if (!activityCat) return false; // If activity has no ageGroup, can't match
-
-  // "All Ages (1+)" => everything
+  if (!activityCat) return false; 
   if (userCategory === "All Ages (1+)") {
     return true;
   }
-  // Otherwise, exact match required for single or combined categories:
-  // e.g. "Children", "Teenagers", "Adults",
-  //      "Children and Teenagers", "Teenagers and Adults"
   return userCategory.trim().toLowerCase() === activityCat.trim().toLowerCase();
 }
 
-// -------------------------
 // Controller: searchActivities
 // Expects in req.body:
 //  - searchQuery: string
@@ -66,7 +57,7 @@ const searchActivities = async (req, res) => {
       guestDetails,
     } = req.body;
 
-    console.log("[searchActivities] Received parameters:", {
+    logger.debug("[searchActivities] Received parameters:", {
       searchQuery,
       selectedRegion,
       rawDateRange,
@@ -77,7 +68,7 @@ const searchActivities = async (req, res) => {
     const snapshot = await db.ref("activities").once("value");
     const activitiesData = snapshot.val();
     if (!activitiesData) {
-      console.log("[searchActivities] No activities found in database.");
+      logger.debug("[searchActivities] No activities found in database.");
       return res.status(200).send({ activities: [] });
     }
 
@@ -89,9 +80,10 @@ const searchActivities = async (req, res) => {
 
       // (a) City search
       if (searchQuery) {
-        if (!activity.city ||
-            !activity.city.trim().toLowerCase()
-              .includes(searchQuery.trim().toLowerCase())) {
+        if (
+          !activity.city ||
+          !activity.city.trim().toLowerCase().includes(searchQuery.trim().toLowerCase())
+        ) {
           matches = false;
         }
       }
@@ -134,11 +126,9 @@ const searchActivities = async (req, res) => {
 
       // (d) Guest details
       if (guestDetails && guestDetails.category) {
-        // Age group exact match (unless "All Ages (1+)")
         if (!doesAgeGroupMatch(guestDetails.category, activity.ageGroup || "")) {
           matches = false;
         }
-        // maxGuestsPerTime
         if (
           activity.maxGuestsPerTime === undefined ||
           Number(activity.maxGuestsPerTime) < Number(guestDetails.value)
@@ -150,11 +140,10 @@ const searchActivities = async (req, res) => {
       return matches;
     });
 
-    console.log(`[searchActivities] Returning ${filteredActivities.length} matching activities.`);
+    logger.debug(`[searchActivities] Returning ${filteredActivities.length} matching activities.`);
     return res.status(200).send({ activities: filteredActivities });
-
   } catch (error) {
-    console.error("[searchActivities] Error during search:", error);
+    logger.error("[searchActivities] Error during search:", error);
     return res.status(500).send({ error: "Failed to search activities." });
   }
 };

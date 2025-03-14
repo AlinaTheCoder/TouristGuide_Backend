@@ -1,4 +1,5 @@
 // utils/Host.js
+const logger = require('../middleware/logger'); 
 
 /**
  * Transforms a host activity snapshot into an object if it is a "List" activity.
@@ -9,30 +10,29 @@
  * @returns {Object|null} - Transformed activity object or null if not a "List" activity.
  */
 function transformListedActivity(childSnapshot) {
-    const activityData = childSnapshot.val();
-    if (activityData.listingStatus !== "List") {
-      console.log(
-        `[DEBUG] Skipping Non-List Activity: ${childSnapshot.key}, listingStatus: ${activityData.listingStatus}`
-      );
-      return null;
-    }
-    
-    const transformed = {
-      id: childSnapshot.key,
-      images: activityData.activityImages || [],
-      status: activityData.status,
-      createdAt: activityData.createdAt,
-      address: activityData.address || 'No address provided',
-      city: activityData.city,
-    };
-  
-    console.log('[DEBUG] Activity Details:', {
-      ...transformed,
-      listingStatus: activityData.listingStatus, // For debug purposes
-    });
-  
-    return transformed;
+  const activityData = childSnapshot.val();
+  if (activityData.listingStatus !== "List") {
+    logger.debug(
+      `[DEBUG] Skipping Non-List Activity: ${childSnapshot.key}, listingStatus: ${activityData.listingStatus}`
+    );
+    return null;
   }
-  
-  module.exports = { transformListedActivity };
-  
+
+  const transformed = {
+    id: childSnapshot.key,
+    images: activityData.activityImages || [],
+    status: activityData.status,
+    createdAt: activityData.createdAt,
+    address: activityData.address || 'No address provided',
+    city: activityData.city,
+  };
+
+  logger.debug('[DEBUG] Activity Details:', {
+    ...transformed,
+    listingStatus: activityData.listingStatus, // For debug purposes
+  });
+
+  return transformed;
+}
+
+module.exports = { transformListedActivity };

@@ -1,5 +1,6 @@
 // controllers/TripController.js
-const { db } = require('../config/db');
+const { db, admin } = require('../config/db');
+const logger = require('../middleware/logger');
 
 /**
  * Convert dateKey like "2025-03-27" -> "Nov 27, 2025"
@@ -144,7 +145,7 @@ exports.getUserTrips = async (req, res) => {
 
     return res.status(200).json({ trips });
   } catch (error) {
-    console.error('[getUserTrips] Error:', error);
+    logger.error('[getUserTrips] Error:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
