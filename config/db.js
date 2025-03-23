@@ -1,27 +1,22 @@
-// config/db.js
 const admin = require('firebase-admin');
 const { initializeApp } = require('firebase/app');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
-require('dotenv').config();
-
-// Parse the service account JSON from environment variable
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = require('./touristguide-f0491-firebase-adminsdk-rmphz-2cd6112ea5.json');
 
 // Initialize Firebase Admin SDK
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  // read the URL from an env variable as well (optional):
-  databaseURL: process.env.FIREBASE_DATABASE_URL,
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: "https://touristguide-f0491-default-rtdb.firebaseio.com/",
 });
 
 // Firebase Client SDK Configuration
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID,
+    apiKey: "AIzaSyD1oiqObn_yLK9wYbtNfyR_rHkb6OlsQPw",
+    authDomain: "touristguide-f0491.firebaseapp.com", // Firebase Auth Domain
+    projectId: "touristguide-f0491",
+    storageBucket: "touristguide-f0491.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID",
 };
 
 // Initialize Firebase Client SDK

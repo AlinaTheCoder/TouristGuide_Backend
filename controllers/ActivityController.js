@@ -1,4 +1,4 @@
-// controllers/YourControllerFile.js
+// controllers/ActivityController.js
 
 const { db } = require('../config/db');
 const cloudinary = require('../config/cloudinaryConfig'); 
@@ -140,7 +140,119 @@ const uploadToCloudinary = async (req, res) => {
   }
 };
 
+// Added from ActivityRouter inline handlers
+const getAllActivities = async (req, res) => {
+  try {
+    logger.info('[ActivityController] Fetching all activities');
+    
+    // Get activities from database
+    const activitiesSnapshot = await db.ref('activities').once('value');
+    const activities = activitiesSnapshot.val() || {};
+    
+    logger.info(`[ActivityController] Found ${Object.keys(activities).length} activities`);
+    
+    return res.status(200).json({
+      success: true,
+      data: activities
+    });
+  } catch (error) {
+    logger.error('[ActivityController] Error fetching all activities:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching activities',
+      error: error.message
+    });
+  }
+};
+
+// Added from ActivityRouter inline handlers
+const getActivity = async (req, res) => {
+  try {
+    const { activityId } = req.params;
+    
+    if (!activityId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Activity ID is required'
+      });
+    }
+    
+    logger.info(`[ActivityController] Fetching details for activity: ${activityId}`);
+    
+    // Get activity from database
+    const activitySnapshot = await db.ref(`activities/${activityId}`).once('value');
+    
+    if (!activitySnapshot.exists()) {
+      logger.warn(`[ActivityController] Activity not found: ${activityId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Activity not found'
+      });
+    }
+    
+    const activityData = activitySnapshot.val();
+    logger.info(`[ActivityController] Activity found: ${activityId}, title: ${activityData.activityTitle || 'No title'}`);
+    
+    return res.status(200).json({
+      success: true,
+      data: activityData
+    });
+  } catch (error) {
+    logger.error(`[ActivityController] Error fetching activity ${req.params.activityId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching activity',
+      error: error.message
+    });
+  }
+};
+
+// Added from ActivityRouter inline handlers
+const getActivityDetails = async (req, res) => {
+  try {
+    const { activityId } = req.params;
+    
+    if (!activityId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Activity ID is required'
+      });
+    }
+    
+    logger.info(`[ActivityController] Fetching detailed info for activity: ${activityId}`);
+    
+    // Get activity from database
+    const activitySnapshot = await db.ref(`activities/${activityId}`).once('value');
+    
+    if (!activitySnapshot.exists()) {
+      logger.warn(`[ActivityController] Activity details not found: ${activityId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Activity details not found'
+      });
+    }
+    
+    const activityData = activitySnapshot.val();
+    logger.info(`[ActivityController] Activity details found: ${activityId}, title: ${activityData.activityTitle || 'No title'}`);
+    
+    return res.status(200).json({
+      success: true,
+      data: activityData
+    });
+  } catch (error) {
+    logger.error(`[ActivityController] Error fetching activity details ${req.params.activityId}:`, error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching activity details',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   uploadToCloudinary,
   CreateActivity,
+  getAllActivities,
+  getActivity,
+  getActivityDetails
 };

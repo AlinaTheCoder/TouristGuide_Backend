@@ -48,6 +48,54 @@ function parseTimeSlot(timeSlot) {
 }
 
 /**
+ * Create a Date object from a dateKey and the start time portion of timeSlotKey
+ */
+function createDateTimeObject(dateKey, timeSlotKey) {
+  try {
+    if (!dateKey || !timeSlotKey) return null;
+    
+    // Parse the date parts
+    const dateParts = dateKey.split('-'); // ["2025", "03", "27"]
+    if (dateParts.length !== 3) return null;
+    
+    // Parse the time part (take only the start time)
+    const startTimePart = timeSlotKey.split('_-_')[0]; // "6-00_am"
+    if (!startTimePart) return null;
+    
+    // Remove the underscore and extract time parts
+    const timeString = startTimePart.replace('_', ' '); // "6-00 am"
+    const timeParts = timeString.split('-'); // ["6", "00 am"]
+    if (timeParts.length !== 2) return null;
+    
+    const hours = parseInt(timeParts[0], 10);
+    const minutesPeriod = timeParts[1]; // "00 am"
+    const minutes = parseInt(minutesPeriod, 10);
+    const isPM = minutesPeriod.toLowerCase().includes('pm');
+    
+    // Create the date object
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1; // JS months are 0-indexed
+    const day = parseInt(dateParts[2], 10);
+    
+    const date = new Date(year, month, day);
+    
+    // Set the time (adjusting for PM)
+    let adjustedHours = hours;
+    if (isPM && hours < 12) {
+      adjustedHours += 12;
+    } else if (!isPM && hours === 12) {
+      adjustedHours = 0;
+    }
+    
+    date.setHours(adjustedHours, minutes, 0, 0);
+    return date;
+  } catch (error) {
+    logger.error(`Error parsing datetime from ${dateKey} and ${timeSlotKey}:`, error);
+    return null;
+  }
+}
+
+/**
  * GET /trips/user/:userId
  * Returns an array "trips" with each item:
  *   {
@@ -59,7 +107,12 @@ function parseTimeSlot(timeSlot) {
  *     endTime: "10:00 AM",
  *     price: "Rs. 5000",
  *     guests: "2 guests",
- *     host: "John Doe"
+ *     host: "John Doe",
+ *     rawBookingDate: "2025-03-27",
+ *     rawTimeSlot: "6-00_am_-_10-00_am",
+ *     reviewEligibleTimestamp: 1679554800000, // Unix timestamp when review becomes eligible
+ *     bookingRecordId: <recordKey>,
+ *     hasFeedback: <boolean>
  *   }
  */
 exports.getUserTrips = async (req, res) => {
@@ -76,6 +129,29 @@ exports.getUserTrips = async (req, res) => {
       return res.status(200).json({ trips: [] });
     }
     const allBookings = bookingsSnap.val();
+
+    // 3) Fetch user feedback to check which activities already have feedback
+    const feedbackSnap = await db.ref('feedback').once('value');
+    const allFeedback = feedbackSnap.exists() ? feedbackSnap.val() : {};
+
+    // Map to track activities for which the user has already submitted feedback
+    const feedbackSubmitted = {};
+    
+    // Check each activity's feedback
+    for (const activityId in allFeedback) {
+      const activityFeedback = allFeedback[activityId];
+      
+      // Check each feedback entry
+      for (const feedbackId in activityFeedback) {
+        const feedback = activityFeedback[feedbackId];
+        
+        // If feedback is from this user, mark it
+        if (feedback.userId === userId) {
+          feedbackSubmitted[activityId] = true;
+          break;
+        }
+      }
+    }
 
     const trips = [];
 
@@ -126,6 +202,19 @@ exports.getUserTrips = async (req, res) => {
               // title => activityTitle
               const activityTitle = activityObj.activityTitle || 'Untitled';
 
+              // Create a Date object from the booking date and start time
+              const bookingDateTime = createDateTimeObject(dateKey, timeSlotKey);
+              
+              // Calculate when review becomes eligible (24 hours after booking)
+              let reviewEligibleTimestamp = null;
+              if (bookingDateTime) {
+                // Add 24 hours to the booking time
+                reviewEligibleTimestamp = bookingDateTime.getTime() + (24 * 60 * 60 * 1000);
+              }
+
+              // Add information about whether feedback has been submitted
+              const hasFeedback = feedbackSubmitted[activityKey] === true;
+
               trips.push({
                 id: activityKey,
                 image: activityImage,
@@ -136,6 +225,11 @@ exports.getUserTrips = async (req, res) => {
                 price,
                 guests,
                 host: hostName,
+                rawBookingDate: dateKey,
+                rawTimeSlot: timeSlotKey,
+                reviewEligibleTimestamp,
+                bookingRecordId: recordKey,
+                hasFeedback
               });
             }
           }

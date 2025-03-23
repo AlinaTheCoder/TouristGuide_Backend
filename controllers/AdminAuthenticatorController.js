@@ -103,12 +103,18 @@ async function Signup(req, res) {
 async function Login(req, res) {
   const { email, password } = req.body;
 
+  // Detailed logging
+  logger.info(`Admin login attempt with email: ${email}`);
+
   // Input Validation
   if (!email || !password) {
+    logger.warn('Admin login attempt missing email or password');
     return res.status(400).send({ error: 'Email and password are required.' });
   }
 
   try {
+    logger.info('Attempting Firebase authentication...');
+    
     // Sign in with Firebase Authentication
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
@@ -117,18 +123,36 @@ async function Login(req, res) {
     const uid = userCredential.user.uid;
     const adminEmail = userCredential.user.email;
 
-    // Return the token and user details
-    res.status(200).send({
+    // Log successful login
+    logger.info(`Admin login successful for uid: ${uid}, email: ${adminEmail}`);
+    
+    // Log the response structure we're sending back
+    const responseObj = {
       message: 'Login successful!',
       token,
       uid,
       email: adminEmail,
-    });
+    };
+    logger.info('Sending response structure: ' + JSON.stringify(
+      Object.keys(responseObj).reduce((acc, key) => {
+        acc[key] = key === 'token' ? '[TOKEN_HIDDEN]' : responseObj[key];
+        return acc;
+      }, {})
+    ));
+
+    // Return the token and user details
+    res.status(200).send(responseObj);
   } catch (error) {
-    // Replaced console.error with logger.error
-    logger.error(`Error during login: ${error}`);
+    // Enhanced error logging
+    logger.error(`Admin login error for email ${email}: ${error.message}`);
+    logger.error(`Error code: ${error.code}, Error details: ${JSON.stringify(error)}`);
+    
     const errorCode = error.code || 'unknown';
     const errorMessage = mapFirebaseError(errorCode, 'login');
+    
+    // Log what we're sending back on error
+    logger.info(`Responding with error: ${errorMessage}`);
+    
     res.status(400).send({ error: errorMessage });
   }
 }
