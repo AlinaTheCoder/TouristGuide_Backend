@@ -60,7 +60,7 @@ const sendOTP = async (req, res) => {
   // -----------------------------------------------------------------------
   // Generate OTP and save it with expiration time
   const otp = generateOTP();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // OTP expires in 10 minutes
+  const expiresAt = Date.now() + 2 * 60 * 1000; // OTP expires in 2 minutes
   const sanitizedEmail = sanitizeEmail(email);
   const otpRef = db.ref(`emailVerifications/${sanitizedEmail}`);
 
@@ -77,9 +77,8 @@ const sendOTP = async (req, res) => {
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Your OTP Code for Registration',
-      text: `Your OTP code is: ${otp}. It will expire in 10 minutes.`,
+      text: `Your OTP code is: ${otp}. It will expire in 2 minutes.`,
     };
-
     // Send the OTP email
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {

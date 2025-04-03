@@ -1,7 +1,6 @@
 // controllers/FeedbackController.js
 const { db, admin } = require('../config/db');
 const logger = require('../middleware/logger');
-const { cancelScheduledNotification } = require('../config/fcmService');
 
 // Submit or update feedback
 exports.submitFeedback = async (req, res) => {
@@ -124,21 +123,6 @@ exports.submitFeedback = async (req, res) => {
     // If no booking was found, still mark feedback as successful but log a warning
     if (!bookingUpdated) {
       logger.warn(`[submitFeedback] No booking records found for activity ${activityId} by user ${userId}`);
-    }
-
-    // Cancel any pending notification if we found a scheduleId
-    if (scheduleId) {
-      try {
-        const cancelResult = await cancelScheduledNotification(scheduleId);
-        if (cancelResult.success) {
-          logger.info(`[submitFeedback] Cancelled feedback reminder notification: ${scheduleId}`);
-        } else {
-          logger.warn(`[submitFeedback] Failed to cancel notification: ${cancelResult.error}`);
-        }
-      } catch (error) {
-        // Log but don't fail the feedback submission
-        logger.error(`[submitFeedback] Error cancelling feedback notification: ${error.message}`);
-      }
     }
 
     // Recalculate average rating after update

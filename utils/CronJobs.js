@@ -1,17 +1,17 @@
-// utils/CronJobs.js  
-/**  
- * CronJobs.js - Central manager for all scheduled tasks  
- *  
- * This file contains all cron jobs for the application  
- * and provides a single initialization function.  
+// utils/CronJobs.js (updated)
+/**
+ * CronJobs.js - Central manager for all scheduled tasks
+ *
+ * This file contains all cron jobs for the application
+ * and provides a single initialization function.
  */
 
-const cron = require('node-cron');  
-const logger = require('../middleware/logger');  
-const { cleanupExpiredOTP } = require('../cleanupExpiredOTP');  
-const { checkAndUnlistExpiredActivities } = require('./CheckExpiredActivities');  
-const { processScheduledNotifications } = require('./notificationProcessor');  
+const cron = require('node-cron');
+const logger = require('../middleware/logger');
+const { cleanupExpiredOTP } = require('../cleanupExpiredOTP');
+const { checkAndUnlistExpiredActivities } = require('./CheckExpiredActivities');
 const { cleanupUnlistedWishlistItems } = require('./cleanupUnlistedWishlistItems');
+const { sendFeedbackReminders } = require('./SendFeedbackReminders'); // Add this import
 
 /**
  * Run activities maintenance tasks (expired activities check and wishlist cleanup)
@@ -41,27 +41,32 @@ async function runActivitiesMaintenanceTasks() {
   return { updatedCount, removedCount };
 }
 
-/**  
- * Initialize all cron jobs for the application  
- */  
-function initCronJobs() {  
+/**
+ * Run feedback reminder task
+ * @returns {Promise<number>} Number of feedback reminder emails sent
+ */
+async function runFeedbackReminderTask() {
+  try {
+    logger.info('[MAINTENANCE] Running feedback reminder task...');
+    const emailsSent = await sendFeedbackReminders();
+    logger.info(`[MAINTENANCE] Feedback reminder task complete. Sent ${emailsSent} reminder emails.`);
+    return emailsSent;
+  } catch (error) {
+    logger.error(`[MAINTENANCE] Error in feedback reminder task: ${error.message}`);
+    return 0;
+  }
+}
+
+/**
+ * Initialize all cron jobs for the application
+ */
+function initCronJobs() {
   logger.info('[CRON] Initializing all cron jobs...');
 
-  // ==== OTP CLEANUP (every 30 minutes) ====  
-  cron.schedule('*/30 * * * *', () => {  
-    logger.info('[CRON] Running cleanupExpiredOTP...');  
-    cleanupExpiredOTP();  
-  });
-
-  // ==== NOTIFICATION PROCESSING (every 5 minutes) ====  
-  cron.schedule('*/5 * * * *', async () => {  
-    logger.info('[CRON] Running scheduled notification processor...');  
-    try {  
-      const processedCount = await processScheduledNotifications();  
-      logger.info(`[CRON] Notification processing complete. Processed ${processedCount} notifications.`);  
-    } catch (error) {  
-      logger.error(`[CRON] Error in notification processor: ${error.message}`);  
-    }  
+  // ==== OTP CLEANUP (every 30 minutes) ====
+  cron.schedule('*/30 * * * *', () => {
+    logger.info('[CRON] Running cleanupExpiredOTP...');
+    cleanupExpiredOTP();
   });
 
   // ==== ACTIVITIES MAINTENANCE (expired check and wishlist cleanup) (every 3 hours) ====
@@ -75,35 +80,25 @@ function initCronJobs() {
     }
   });
 
-  // ==== OLD NOTIFICATIONS CLEANUP (daily at midnight) ====  
-  cron.schedule('0 0 * * *', async () => {  
-    logger.info('[CRON] Running daily cleanup of old notifications...');  
-    try {  
-      const { cleanupOldNotifications } = require('./notificationProcessor');  
-      const cleanedCount = await cleanupOldNotifications();  
-      logger.info(`[CRON] Notification cleanup complete. Removed ${cleanedCount} old notifications.`);  
-    } catch (error) {  
-      logger.error(`[CRON] Error in notification cleanup: ${error.message}`);  
-    }  
+  // ==== FEEDBACK REMINDERS (hourly) ====
+  cron.schedule('0 * * * *', async () => {
+    logger.info('[CRON] Running feedback reminder task...');
+    try {
+      const emailsSent = await runFeedbackReminderTask();
+      logger.info(`[CRON] Feedback reminder task complete. Sent ${emailsSent} reminder emails.`);
+    } catch (error) {
+      logger.error(`[CRON] Error in feedback reminder task: ${error.message}`);
+    }
   });
 
-  logger.info('[CRON] All cron jobs initialized successfully');  
+  logger.info('[CRON] All cron jobs initialized successfully');
 }
 
-/**  
- * Run all startup tasks (same as cron jobs but executed immediately on server start)  
- */  
-async function runStartupTasks() {  
+/**
+ * Run all startup tasks (same as cron jobs but executed immediately on server start)
+ */
+async function runStartupTasks() {
   logger.info('[STARTUP] Running all startup tasks...');
-
-  // Run notification processor on startup  
-  try {  
-    logger.info('[STARTUP] Running initial notification processor...');  
-    const processedCount = await processScheduledNotifications();  
-    logger.info(`[STARTUP] Initial notification processing complete. Processed ${processedCount} notifications.`);  
-  } catch (error) {  
-    logger.error(`[STARTUP] Error in initial notification processing: ${error.message}`);  
-  }
 
   // Run activities maintenance tasks on startup
   try {
@@ -114,18 +109,27 @@ async function runStartupTasks() {
     logger.error(`[STARTUP] Error in initial activities maintenance: ${error.message}`);
   }
 
-  logger.info('[STARTUP] All startup tasks completed');  
+  // Run feedback reminder task on startup
+  try {
+    logger.info('[STARTUP] Running initial feedback reminder task...');
+    const emailsSent = await runFeedbackReminderTask();
+    logger.info(`[STARTUP] Initial feedback reminder task complete. Sent ${emailsSent} reminder emails.`);
+  } catch (error) {
+    logger.error(`[STARTUP] Error in initial feedback reminder task: ${error.message}`);
+  }
+
+  logger.info('[STARTUP] All startup tasks completed');
 }
 
-/**  
- * Initialize all scheduled tasks - both cron jobs and startup tasks  
- */  
-function initAllScheduledTasks() {  
-  // Initialize regular cron jobs  
-  initCronJobs();  
-   
-  // Run startup tasks  
-  runStartupTasks();  
+/**
+ * Initialize all scheduled tasks - both cron jobs and startup tasks
+ */
+function initAllScheduledTasks() {
+  // Initialize regular cron jobs
+  initCronJobs();
+  
+  // Run startup tasks
+  runStartupTasks();
 }
 
 module.exports = { initAllScheduledTasks };

@@ -16,7 +16,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
     logger.info(`[EmailService] Sending email to: ${to}`);
 
     const mailOptions = {
-      from: 'alinalearns6@gmail.com', // Must match the auth user
+      from: 'touristguide.team.official@gmail.com', // Must match the auth user
       to,
       subject,
       text,

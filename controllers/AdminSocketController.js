@@ -1,69 +1,44 @@
-// controllers/AdminSocketController.js
-const { db } = require('../config/db');
-const logger = require('../middleware/logger'); 
+// controllers/AdminSocketController.js  
+const { db } = require('../config/db');  
+const logger = require('../middleware/logger');
 
-/**
- * Listens for changes on the 'activities' node in Firebase.
- * Filters activities into pending, accepted, and rejected groups.
- * Emits three separate events: 'adminPendingUpdate', 'adminAcceptedUpdate', and 'adminRejectedUpdate'.
- */
-const setupAdminSocketListeners = (io) => {
+/**  
+ * Listens for changes on the 'activities' node in Firebase.  
+ * Filters activities to only get pending activities.
+ * Emits only the 'adminPendingUpdate' event.
+ */  
+const setupAdminSocketListeners = (io) => {  
   const activitiesRef = db.ref('activities');
 
-  activitiesRef.on('value', (snapshot) => {
-    let pendingActivities = [];
-    let acceptedActivities = [];
-    let rejectedActivities = [];
+  activitiesRef.on('value', (snapshot) => {  
+    let pendingActivities = [];  
 
-    if (snapshot.exists()) {
-      snapshot.forEach((childSnapshot) => {
-        const activity = childSnapshot.val();
-        // Build a common structure for each activity
-        const activityInfo = {
-          id: childSnapshot.key,
-          activityTitle: activity.activityTitle,
-          createdAt: activity.createdAt,
-          images: activity.activityImages || [],
-        };
-
+    if (snapshot.exists()) {  
+      snapshot.forEach((childSnapshot) => {  
+        const activity = childSnapshot.val();  
+        
+        // Only process activities with Pending status
         if (activity.status === 'Pending') {
-          pendingActivities.push(activityInfo);
-        } else if (activity.status === 'Accepted') {
-          // For accepted, we want to send a single image (first one)
-          acceptedActivities.push({
-            id: childSnapshot.key,
-            activityTitle: activity.activityTitle,
-            image: activity.activityImages ? activity.activityImages[0] : null,
-          });
-        } else if (activity.status === 'Rejected') {
-          rejectedActivities.push({
-            id: childSnapshot.key,
-            activityTitle: activity.activityTitle,
-            image: activity.activityImages ? activity.activityImages[0] : null,
-          });
+          // Build the structure for pending activities
+          const activityInfo = {  
+            id: childSnapshot.key,  
+            activityTitle: activity.activityTitle,  
+            createdAt: activity.createdAt,  
+            images: activity.activityImages || [],  
+          };
+          pendingActivities.push(activityInfo);  
         }
-      });
+      });  
     }
 
-    // Emit realtime events for each group
-    io.emit('adminPendingUpdate', {
-      success: true,
-      data: pendingActivities,
+    // Emit realtime event only for pending activities
+    io.emit('adminPendingUpdate', {  
+      success: true,  
+      data: pendingActivities,  
     });
-
-    io.emit('adminAcceptedUpdate', {
-      success: true,
-      data: acceptedActivities,
-    });
-
-    io.emit('adminRejectedUpdate', {
-      success: true,
-      data: rejectedActivities,
-    });
-  }, (error) => {
-    // Changed from console.error to logger.error
-    logger.error(`Error listening for admin activities: ${error}`);
-  });
+  }, (error) => {  
+    logger.error(`Error listening for admin activities: ${error}`);  
+  });  
 };
 
 module.exports = { setupAdminSocketListeners };

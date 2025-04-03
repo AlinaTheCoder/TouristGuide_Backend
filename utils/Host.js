@@ -2,18 +2,23 @@
 const logger = require('../middleware/logger'); 
 
 /**
- * Transforms a host activity snapshot into an object if it is a "List" activity.
+ * Transforms a host activity snapshot into an object if it meets the criteria:
+ * - Status is "Accepted" AND
+ * - ListingStatus is either "List" OR "Unlist"
  * Logs debug details and returns the transformed object.
- * If the activity is not "List", logs the skip message and returns null.
+ * If criteria not met, logs the skip message and returns null.
  *
  * @param {Object} childSnapshot - A Firebase snapshot for an activity.
- * @returns {Object|null} - Transformed activity object or null if not a "List" activity.
+ * @returns {Object|null} - Transformed activity object or null if criteria not met.
  */
 function transformListedActivity(childSnapshot) {
   const activityData = childSnapshot.val();
-  if (activityData.listingStatus !== "List") {
+  
+  // Only process activities with status "Accepted" AND listingStatus either "List" OR "Unlist"
+  if (activityData.status !== "Accepted" || 
+      (activityData.listingStatus !== "List" && activityData.listingStatus !== "Unlist")) {
     logger.debug(
-      `[DEBUG] Skipping Non-List Activity: ${childSnapshot.key}, listingStatus: ${activityData.listingStatus}`
+      `[DEBUG] Skipping Activity: ${childSnapshot.key}, status: ${activityData.status}, listingStatus: ${activityData.listingStatus}`
     );
     return null;
   }

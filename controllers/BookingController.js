@@ -4,7 +4,6 @@ const moment = require('moment'); // for date/time formatting (optional but help
 const stripe = require('../config/stripe');    
 const sendEmail = require('../config/emailService'); // import email service
 const logger = require('../middleware/logger');
-const { scheduleNotification } = require('../config/fcmService');
 
 // Helper function to update listingStatus if the activity is fully booked across its date range.    
 async function checkAndUpdateListingStatus(activityId, activity) {    
@@ -394,8 +393,8 @@ exports.bookTimeSlot = async (req, res) => {
     const reviewEligibleTimestamp = bookingEndTime.getTime() + (24 * 60 * 60 * 1000);
     
     // Log calculated timestamps for verification
-    logger.info(`[bookTimeSlot] Notification scheduled for (UTC): ${new Date(reviewEligibleTimestamp).toISOString()}`);
-    logger.info(`[bookTimeSlot] Notification time in Pakistan: ${new Date(reviewEligibleTimestamp + pstOffset).toISOString()}`);
+    logger.info(`[bookTimeSlot] Review eligible time (UTC): ${new Date(reviewEligibleTimestamp).toISOString()}`);
+    logger.info(`[bookTimeSlot] Review eligible time in Pakistan: ${new Date(reviewEligibleTimestamp + pstOffset).toISOString()}`);
 
     // 5) Finalize booking with a transaction    
     const dayRef = db.ref(`bookings/${activityId}/${date}`);
@@ -483,48 +482,6 @@ exports.bookTimeSlot = async (req, res) => {
       logger.error(`[bookTimeSlot] Error creating payment record: ${paymentError.message}`);    
     }
 
-    // 7) Schedule a feedback reminder notification for the appropriate time
-    try {
-      // Prepare notification content
-      const notificationData = {
-        title: 'Share Your Experience!',
-        body: `How was your experience with "${activity.activityTitle}"? Tap to share your feedback!`,
-        data: {
-          type: 'FEEDBACK_REMINDER',
-          activityId,
-          bookingId,
-          userId,
-          screen: 'FeedbackScreen'
-        }
-      };
-
-      // Log notification data for debugging
-      logger.debug(`[bookTimeSlot] Scheduling notification with data:`, notificationData);
-      logger.debug(`[bookTimeSlot] Scheduling for timestamp: ${reviewEligibleTimestamp} (${new Date(reviewEligibleTimestamp).toISOString()})`);
-
-      // Schedule the notification
-      const scheduleResult = await scheduleNotification(
-        userId, 
-        reviewEligibleTimestamp, 
-        notificationData
-      );
-
-      if (scheduleResult.success) {
-        logger.info(`[bookTimeSlot] Feedback reminder notification scheduled with ID: ${scheduleResult.scheduleId}`);
-        logger.info(`[bookTimeSlot] Notification will be sent at: ${new Date(reviewEligibleTimestamp).toISOString()}`);
-        
-        // Store the schedule ID with the booking record for potential cancellation later
-        await db.ref(`bookings/${activityId}/${date}/${slotId}/bookingRecords/${bookingId}`).update({
-          feedbackReminderScheduleId: scheduleResult.scheduleId
-        });
-      } else {
-        logger.warn(`[bookTimeSlot] Failed to schedule feedback reminder: ${scheduleResult.error}`);
-      }
-    } catch (notificationError) {
-      // Log but don't fail the booking process
-      logger.error(`[bookTimeSlot] Error scheduling feedback reminder: ${notificationError.message}`);
-    }
-
     // 8) Check and update listingStatus if needed    
     await checkAndUpdateListingStatus(activityId, activity);
 
@@ -610,7 +567,6 @@ Thank you for hosting on our platform!`,
     }
 
     logger.info('[bookTimeSlot] Booking confirmed!');  
-    logger.info(`[bookTimeSlot] Notification will be sent at: ${new Date(reviewEligibleTimestamp).toISOString()} (Pakistan time: ${new Date(reviewEligibleTimestamp + pstOffset).toISOString()})`);  
     return res.status(200).json({    
       success: true,    
       message: "Booking successful!",  

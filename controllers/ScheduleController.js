@@ -6,6 +6,7 @@ const logger = require('../middleware/logger');
  * GET /schedule/host/:hostId
  * Fetch all activities belonging to a specific host
  */
+// controllers/ScheduleController.js
 exports.getHostActivities = async (req, res) => {
   const { hostId } = req.params;
   logger.debug(`[DEBUG - getHostActivities] Received request for hostId: ${hostId}`);
@@ -29,22 +30,22 @@ exports.getHostActivities = async (req, res) => {
 
     logger.debug(`[DEBUG - getHostActivities] Total activities fetched: ${activitiesArray.length}`);
 
-    // Filter only activities where `status = "Accepted"` and `listingStatus = "List"`
-    const acceptedActivities = activitiesArray.filter(
-      (activity) => activity.status === 'Accepted' && activity.listingStatus === 'List'
+    // Filter only activities where status = "Accepted" AND listingStatus is either "List" or "Unlist" 
+    const filteredActivities = activitiesArray.filter(
+      (activity) => activity.status === 'Accepted' && 
+      (activity.listingStatus === 'List' || activity.listingStatus === 'Unlist')
     );
 
     logger.debug(
-      `[DEBUG - getHostActivities] Accepted & Listed activities count: ${acceptedActivities.length}`
+      `[DEBUG - getHostActivities] Filtered activities count: ${filteredActivities.length}`
     );
 
-    return res.json(acceptedActivities);
+    return res.json(filteredActivities);
   } catch (error) {
     logger.error(`[ERROR - getHostActivities] ${error.message}`);
     return res.status(500).json({ error: 'Failed to fetch host activities.' });
   }
 };
-
 /**
  * GET /schedule/:activityId
  * Fetch the details of one specific activity by its ID
