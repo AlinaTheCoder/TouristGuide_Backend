@@ -10,9 +10,11 @@ const { initAllScheduledTasks } = require('./utils/CronJobs');
 // Import the Winston logger
 const logger = require('./middleware/logger');
 
+
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
 
 // Health check endpoint that doesn't require database connection
 app.get('/health', (req, res) => {
@@ -23,54 +25,71 @@ app.get('/health', (req, res) => {
   });
 });
 
+
 // For file uploads
 const upload = multer({ storage: multer.memoryStorage() });
+
 
 // Existing routers
 const AuthenticatorRouter = require('./routers/AuthenticatorRouter');
 app.use(AuthenticatorRouter);
 
+
 const UserProfileRouter = require('./routers/UserProfileRouter');
 app.use(UserProfileRouter);
+
 
 const AdminAuthenticatorRouter = require('./routers/AdminAuthenticatorRouter');
 app.use(AdminAuthenticatorRouter);
 
+
 const ActivityRouter = require('./routers/ActivityRouter');
 app.use(ActivityRouter);
+
 
 const AdminRouter = require('./routers/AdminRouter');
 app.use(AdminRouter);
 
+
 const HostRouter = require('./routers/HostRouter');
 app.use(HostRouter);
+
 
 const ExploreRouter = require('./routers/ExploreRouter');
 app.use(ExploreRouter);
 
+
 const BookingRouter = require('./routers/BookingRouter');
 app.use(BookingRouter);
+
 
 const WishlistRouter = require('./routers/WishlistRouter');
 app.use(WishlistRouter);
 
+
 const emailVerificationRouter = require('./routers/EmailVerificationRouter');
 app.use('/email', emailVerificationRouter);
+
 
 const searchRouter = require('./routers/SearchRouter');
 app.use(searchRouter);
 
+
 const scheduleRouter = require('./routers/ScheduleRouter');
 app.use('/schedule', scheduleRouter);
+
 
 const AnalyticsRouter = require('./routers/AnalyticsRouter');
 app.use(AnalyticsRouter);
 
+
 const TripRouter = require('./routers/TripRouter');
 app.use(TripRouter);
 
+
 const FeedbackRouter = require('./routers/FeedbackRouter');
 app.use(FeedbackRouter);
+
 
 const { setupUserProfileSyncListeners } = require('./utils/userProfileSync');
 // Initialize user profile sync listeners
@@ -80,8 +99,10 @@ try {
   logger.error('Error setting up user profile sync listeners:', error);
 }
 
+
 const earningsRouter = require('./routers/EarningsRouter');
 app.use('/earnings', earningsRouter);
+
 
 // Initialize all cron jobs and startup tasks
 try {
@@ -90,54 +111,26 @@ try {
   logger.error('Error initializing scheduled tasks:', error);
 }
 
+
 app.get('/', (req, res) => {
   res.send('Backend is running successfully Lalalla!');
 });
 
-// Replace your current Socket.IO initialization with this
+
+// Replace your current Socket.IO initialization with this:
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   },
-  transports: ['polling'], // Match client config, using polling only
-  pingTimeout: 120000, // Increased timeouts
-  pingInterval: 30000,
-  connectTimeout: 60000,
-  allowUpgrades: false // Disable transport upgrades for stability
+  transports: ['polling', 'websocket'], // Explicitly define transports
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Add this immediately after creating the socket.io instance
-io.on('connection', (socket) => {
-  logger.info(`Socket connected: ${socket.id}`);
-  
-  // Add direct request handler for immediate data
-  socket.on('getExploreActivities', (params) => {
-    logger.info(`Socket ${socket.id} requested explore activities`);
-    // Direct call to get and emit data only to this client
-    const activitiesRef = require('./config/db').db.ref('activities');
-    activitiesRef.once('value', (snapshot) => {
-      const { filterExploreActivities } = require('./utils/Explore');
-      const activities = filterExploreActivities(snapshot, {
-        logDebug: false,
-        includeLikedStatus: false,
-        defaultDateRange: {}
-      });
-      socket.emit('exploreActivitiesUpdate', {
-        success: true,
-        activitiesCount: activities.length,
-        data: activities
-      });
-    });
-  });
-
-  socket.on('disconnect', (reason) => {
-    logger.info(`Socket disconnected: ${socket.id}, reason: ${reason}`);
-  });
-});
 
 // Initialize the socket routes (this calls setupExploreActivitiesListener internally)
 try {
@@ -147,6 +140,7 @@ try {
   logger.error('Error initializing explore socket routes:', error);
 }
 
+
 // Initialize admin socket routes
 try {
   const initAdminSocketRoutes = require('./routers/AdminSocketRouter');
@@ -154,6 +148,7 @@ try {
 } catch (error) {
   logger.error('Error initializing admin socket routes:', error);
 }
+
 
 // for the Listings Screen
 try {
@@ -163,14 +158,17 @@ try {
   logger.error('Error initializing host socket routes:', error);
 }
 
+
 // --- Catch-All for Unknown Routes ---
 app.use((req, res, next) => {
   logger.warn(`Unknown route accessed: ${req.originalUrl}`);
   res.status(404).send({ error: 'Not Found' });
 });
 
+
 // --- Global Error Handler Middleware ---
 app.use(errorHandler);
+
 
 // --- Process Event Handlers ---
 // More informative process error handlers with graceful shutdown
@@ -179,9 +177,10 @@ process.on('unhandledRejection', (reason, promise) => {
   // Keep the process running for non-critical errors
 });
 
+
 process.on('uncaughtException', (err) => {
   logger.error(`Uncaught Exception: ${err.stack || err}`);
-  
+ 
   // Don't crash for Firebase configuration issues
   if (err.message && (err.message.includes('Cannot find module') || err.message.includes('firebase'))) {
     logger.error('Firebase configuration error. Check environment variables.');
@@ -194,6 +193,7 @@ process.on('uncaughtException', (err) => {
     }, 1000);
   }
 });
+
 
 // Start the server
 const port = process.env.PORT || 8080;
