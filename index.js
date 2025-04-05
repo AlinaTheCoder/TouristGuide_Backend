@@ -131,7 +131,6 @@ const io = require('socket.io')(http, {
   pingInterval: 25000
 });
 
-
 // Initialize the socket routes (this calls setupExploreActivitiesListener internally)
 try {
   const initSocketRoutes = require('./routers/ExploreSocketRouter');
