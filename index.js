@@ -103,6 +103,8 @@ try {
 const earningsRouter = require('./routers/EarningsRouter');
 app.use('/earnings', earningsRouter);
 
+const ChatRouter = require('./routers/ChatRouter');
+app.use('/ai', ChatRouter);
 
 // Initialize all cron jobs and startup tasks
 try {
