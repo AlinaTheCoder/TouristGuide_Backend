@@ -94,9 +94,50 @@ app.get('/', (req, res) => {
   res.send('Backend is running successfully Lalalla!');
 });
 
-// Create HTTP server and attach Socket.IO
+// Replace your current Socket.IO initialization with this
 const http = require('http').createServer(app);
-const io = require('socket.io')(http, { cors: { origin: '*' } });
+const io = require('socket.io')(http, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
+  },
+  transports: ['polling'], // Match client config, using polling only
+  pingTimeout: 120000, // Increased timeouts
+  pingInterval: 30000,
+  connectTimeout: 60000,
+  allowUpgrades: false // Disable transport upgrades for stability
+});
+
+// Add this immediately after creating the socket.io instance
+io.on('connection', (socket) => {
+  logger.info(`Socket connected: ${socket.id}`);
+  
+  // Add direct request handler for immediate data
+  socket.on('getExploreActivities', (params) => {
+    logger.info(`Socket ${socket.id} requested explore activities`);
+    // Direct call to get and emit data only to this client
+    const activitiesRef = require('./config/db').db.ref('activities');
+    activitiesRef.once('value', (snapshot) => {
+      const { filterExploreActivities } = require('./utils/Explore');
+      const activities = filterExploreActivities(snapshot, {
+        logDebug: false,
+        includeLikedStatus: false,
+        defaultDateRange: {}
+      });
+      socket.emit('exploreActivitiesUpdate', {
+        success: true,
+        activitiesCount: activities.length,
+        data: activities
+      });
+    });
+  });
+
+  socket.on('disconnect', (reason) => {
+    logger.info(`Socket disconnected: ${socket.id}, reason: ${reason}`);
+  });
+});
 
 // Initialize the socket routes (this calls setupExploreActivitiesListener internally)
 try {
@@ -155,7 +196,7 @@ process.on('uncaughtException', (err) => {
 });
 
 // Start the server
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 http.listen(port, '0.0.0.0', () => {
   logger.info(`Server running on port ${port}`);
 });
