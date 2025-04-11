@@ -199,5 +199,5 @@ process.on('uncaughtException', (err) => {
 // Start the server
 const port = process.env.PORT || 8080;
 http.listen(port, '0.0.0.0', () => {
-  logger.info(`Server running on port ${port}`);
+  logger.info(`Server Running on port ${port}`);
 });
